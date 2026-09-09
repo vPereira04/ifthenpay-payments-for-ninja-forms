@@ -1,0 +1,289 @@
+.iftp-nf-settings .iftp-nf-card {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	padding: 16px 20px;
+	margin-bottom: 16px;
+	max-width: 800px;
+}
+
+.iftp-nf-methods-table {
+	border-collapse: collapse;
+}
+
+.iftp-nf-methods-table .iftp-nf-col-control {
+	width: 1%;
+	white-space: nowrap;
+	text-align: center;
+	vertical-align: middle;
+}
+
+.iftp-nf-methods-table .iftp-nf-col-divider {
+	border-right: 1px solid #dcdcde;
+}
+
+.iftp-nf-methods-table .iftp-nf-col-method,
+.iftp-nf-methods-table th:nth-child(3),
+.iftp-nf-methods-table th:nth-child(4) {
+	text-align: left;
+}
+
+.iftp-nf-logo-slot {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 48px;
+	max-width: 140px;
+	max-height: 24px;
+	margin-right: 8px;
+	font-weight: 600;
+	font-size: 11px;
+	color: #50575e;
+}
+
+.iftp-nf-logo-slot img {
+	max-width: 140px;
+	max-height: 24px;
+	width: auto;
+	height: auto;
+}
+
+.iftp-nf-account-pill {
+	display: inline-block;
+	height: 24px;
+	line-height: 24px;
+	padding: 0 10px;
+	background: #f0f0f1;
+	border-radius: 12px;
+	font-size: 12px;
+}
+
+.iftp-nf-star {
+	cursor: pointer;
+	font-size: 18px;
+	color: #dcdcde;
+}
+
+.iftp-nf-default-method:checked + .iftp-nf-star {
+	color: #dba617;
+}
+
+.iftp-nf-star--hidden {
+	visibility: hidden;
+}
+
+.iftp-nf-star--wink {
+	animation: iftp-nf-star-wink 0.4s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.iftp-nf-star--wink {
+		animation: none;
+	}
+}
+
+@keyframes iftp-nf-star-wink {
+	0% {
+		transform: scale(1) rotate(0deg);
+	}
+	50% {
+		transform: scale(1.3) rotate(-10deg);
+	}
+	100% {
+		transform: scale(1) rotate(0deg);
+	}
+}
+
+.iftp-nf-row--unprovisioned .iftp-nf-dimmed {
+	opacity: 0.5;
+}
+
+.iftp-nf-status--ok {
+	color: #007017;
+}
+
+.iftp-nf-status-badge {
+	display: inline-block;
+	padding: 2px 10px;
+	border-radius: 12px;
+	font-size: 12px;
+	font-weight: 600;
+	text-transform: capitalize;
+}
+
+.iftp-nf-status-badge--pending {
+	background: #fcf0d5;
+	color: #8a6100;
+}
+
+.iftp-nf-status-badge--paid {
+	background: #d5f2df;
+	color: #007017;
+}
+
+.iftp-nf-status-badge--failed,
+.iftp-nf-status-badge--cancelled {
+	background: #fbe1e1;
+	color: #a72b2b;
+}
+
+.iftp-nf-status-badge--expired {
+	background: #f0f0f1;
+	color: #50575e;
+}
+
+/* Entries screen */
+
+.iftp-nf-entries .description {
+	font-size: 14px;
+	color: #50575e;
+	margin-bottom: 16px;
+}
+
+.iftp-nf-entries-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin-bottom: 8px;
+}
+
+.iftp-nf-entries-toolbar .subsubsub {
+	margin: 0;
+}
+
+.iftp-nf-entries-search {
+	display: flex;
+	gap: 6px;
+}
+
+.iftp-nf-entries-search input[type="search"] {
+	min-width: 280px;
+}
+
+.iftp-nf-entries-count {
+	color: #50575e;
+	font-size: 13px;
+	margin: 0 0 6px;
+}
+
+.iftp-nf-entries-table {
+	border-collapse: collapse;
+}
+
+.iftp-nf-entries-table .iftp-nf-col-narrow {
+	width: 1%;
+	white-space: nowrap;
+}
+
+.iftp-nf-entry-row:hover {
+	background: #f6f7f7;
+}
+
+.iftp-nf-details-toggle {
+	color: #2271b1;
+	cursor: pointer;
+}
+
+.iftp-nf-details-toggle:hover {
+	color: #135e96;
+	text-decoration: underline;
+}
+
+.iftp-nf-entry-details td {
+	background: #f9f9f9;
+	padding: 16px 20px;
+	border-top: none;
+}
+
+.iftp-nf-details-grid {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 32px;
+	margin-bottom: 12px;
+	font-size: 13px;
+}
+
+.iftp-nf-entries-table .tablenav-pages {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 12px 0;
+}
+
+.iftp-nf-entries-page-info {
+	color: #50575e;
+	font-size: 13px;
+}
+
+/* Peeking ninja mascot — decorative only. Real class names/values
+   (nf-shy-ninja-returning, nf-shy-ninja-scooted, the clamp()s, the
+   cubic-beziers) are Ninja Forms' own, adapted to stay inside this plugin's
+   own page instead of the whole viewport: `position: absolute` inside
+   `.iftp-nf-entries` (itself `position: relative`) replaces their
+   `position: fixed`/`sticky` off the full browser viewport, so the mascot
+   can never render over the WP admin sidebar menu regardless of its
+   collapsed/expanded state; `50vw` (viewport-wide center) becomes `50%`
+   (center of this page's own content column) for the same reason; the
+   site-theme custom properties (--global-content-width etc.) become plain
+   viewport-relative fallbacks for the base clamp()s, since those still make
+   sense as proportional sizing.
+   Both directions (left<->center) use the identical transition — Ninja
+   Forms' own CSS gives "returning" a distinct slow easing, but that read as
+   an inconsistent slide once mirrored here, so it's dropped in favor of one
+   shared bouncy transition both ways. */
+
+.iftp-nf-entries {
+	position: relative;
+	padding-bottom: 130px;
+}
+
+.nf-spark-peeking-ninja-wrapper {
+	position: absolute;
+	bottom: 0;
+	left: clamp(24px, 6vw, 95px);
+	width: clamp(70px, 6.66667vw, 126px);
+	overflow: hidden;
+	transform: translateX(-50%);
+	transition: left .4s cubic-bezier(.34, 1.56, .64, 1), bottom .4s cubic-bezier(.34, 1.56, .64, 1), transform .4s cubic-bezier(.34, 1.56, .64, 1);
+	z-index: 10;
+	cursor: pointer;
+	color: #000;
+	pointer-events: auto;
+}
+
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-no-transition {
+	transition: none !important;
+}
+
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-scooted {
+	left: 50%;
+}
+
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-fled {
+	left: 50%;
+	bottom: -160px;
+}
+
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-shake {
+	animation: iftp-nf-ninja-shake .4s ease;
+}
+
+@keyframes iftp-nf-ninja-shake {
+	0%, 100% { transform: translateX(-50%) translateX(0) rotate(0deg); }
+	20% { transform: translateX(-50%) translateX(-6px) rotate(-4deg); }
+	40% { transform: translateX(-50%) translateX(6px) rotate(4deg); }
+	60% { transform: translateX(-50%) translateX(-4px) rotate(-2deg); }
+	80% { transform: translateX(-50%) translateX(4px) rotate(2deg); }
+}
+
+.nf-spark-peeking-ninja {
+	width: 100%;
+}
+
+.nf-spark-peeking-ninja svg {
+	display: block;
+	width: 100%;
+	height: auto;
+}

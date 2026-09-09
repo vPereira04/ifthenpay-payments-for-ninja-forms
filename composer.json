@@ -1,0 +1,18 @@
+{
+    "name": "ifthenpay/ifthenpay-payments-for-ninja-forms",
+    "description": "ifthenpay Pay by Link integration for Ninja Forms",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=7.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Ifthenpay\\NinjaForms\\": "src/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    }
+}
