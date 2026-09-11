@@ -69,8 +69,13 @@ class GatewaySettingsField
         // $method['account'] is the full "ENTITY|ACCOUNT" accounts-string
         // segment (see Sync\GatewaySync::resolve_account()); show just the
         // bare code here, the Method column already names the entity.
-        $account_parts    = explode('|', $method['account']);
-        $account_display = $provisioned ? end($account_parts) : '';
+        // Multibanco is the exception: its two parts are Entidade/Subentidade
+        // (e.g. "11686|000"), not an entity label + account, so both halves
+        // are meaningful and shown as "11686 | 000".
+        $account_parts   = explode('|', $method['account']);
+        $account_display = ! $provisioned ? '' : (
+            'MB' === $method['entity'] ? implode(' | ', $account_parts) : end($account_parts)
+        );
         $is_default  = $method['entity'] === $default_method;
         $row_class   = $provisioned ? '' : ' iftp-nf-row--unprovisioned';
         ?>

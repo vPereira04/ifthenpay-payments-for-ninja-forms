@@ -7,7 +7,7 @@ on:
 
 env:
   # 🔧 CHANGE PER PLUGIN
-  PLUGIN_SLUG: ifthenpay-payments-for-wpforms # WP.org slug
+  PLUGIN_SLUG: ifthenpay-payments-for-ninja-forms # WP.org slug
   PHP_VERSION: "8.2" # Target PHP version for CI
 
 jobs:
