@@ -133,18 +133,20 @@ Below are screenshots demonstrating key features and interfaces of the plugin:
    ![Backoffice Settings](.wordpress-org/screenshot-1.png)
 2. **(Admin Only) Ninja Forms's Gateway Configuration**
    ![Gateway Settings](.wordpress-org/screenshot-2.png)
-3. **(Admin Only) Edit a Form**
-   ![Edit a Form](.wordpress-org/screenshot-3.png)
-4. **(Admin Only) Form Advanced Calculations Setting**
-   ![Advanced Calculations](.wordpress-org/screenshot-4.png)
-5. **(Admin Only) Form Email & Actions settings, Collect Payment Settings**
-   ![Collect Payment Settings](.wordpress-org/screenshot-5.png)
-6. **(Customers Experience) Payment Form**
-   ![Payment Form](.wordpress-org/screenshot-6.png)
-7. **(Customers Experience) ifthenpay Payment Gateway Secure Payment Page**
-   ![Secure Payment Page](.wordpress-org/screenshot-7.png)
-8. **(Admin Only) Payment Entries**
-   ![Payment Entries](.wordpress-org/screenshot-8.png)
+3. **(Admin Only) ifthenpay Confirmation Method**
+   ![Confirmation Method](.wordpress-org/screenshot-3.png)
+4. **(Admin Only) Edit a Form**
+   ![Edit a Form](.wordpress-org/screenshot-4.png)
+5. **(Admin Only) Form Advanced Calculations Setting**
+   ![Advanced Calculations](.wordpress-org/screenshot-5.png)
+6. **(Admin Only) Form Email & Actions settings, Collect Payment Settings**
+   ![Collect Payment Settings](.wordpress-org/screenshot-6.png)
+7. **(Customers Experience) Payment Form**
+   ![Payment Form](.wordpress-org/screenshot-7.png)
+8. **(Customers Experience) ifthenpay Payment Gateway Secure Payment Page**
+   ![Secure Payment Page](.wordpress-org/screenshot-8.png)
+9. **(Admin Only) Payment Entries**
+   ![Payment Entries](.wordpress-org/screenshot-9.png)
 
 ### Support
 
