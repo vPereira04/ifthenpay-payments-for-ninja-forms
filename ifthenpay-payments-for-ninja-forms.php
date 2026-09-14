@@ -3,7 +3,7 @@
  * Plugin Name: ifthenpay Payments for Ninja Forms
  * Plugin URI: https://ifthenpay.com
  * Description: Accept ifthenpay payments (Multibanco, MB WAY, Payshop, Pix, Credit Card and more) in Ninja Forms via Pay by Link, with webhook-confirmed payment status.
- * Version: 0.1.0
+ * Version: 1.0.0
  * Requires at least: 6.4
  * Requires PHP: 7.4
  * Author: ifthenpay
@@ -21,7 +21,7 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('IFTP_NF_VERSION', '0.1.0');
+define('IFTP_NF_VERSION', '1.0.0');
 define('IFTP_NF_FILE', __FILE__);
 define('IFTP_NF_PATH', plugin_dir_path(__FILE__));
 define('IFTP_NF_URL', plugin_dir_url(__FILE__));

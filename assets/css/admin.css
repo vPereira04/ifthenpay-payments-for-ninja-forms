@@ -1,14 +1,329 @@
-.iftp-nf-settings .iftp-nf-card {
-	background: #fff;
-	border: 1px solid #c3c4c7;
-	border-radius: 4px;
-	padding: 16px 20px;
-	margin-bottom: 16px;
+/* Brand blue, on `:root` rather than `.iftp-nf-settings`/`.iftp-nf-entries`
+   directly: several menus on the entries screen (the bulk "Actions" menu,
+   the fake selects, the date calendar, the "Columns" menu) are portaled
+   straight onto `<body>` (see `entries.js`, `createPortalDropdown()`) to
+   escape `.iftp-nf-entries-card`'s `overflow: hidden`, which means they sit
+   *outside* `.iftp-nf-entries` in the DOM. A custom property only inherits
+   through actual descendants, so scoping it to `.iftp-nf-entries` alone left
+   every `var(--iftp-nf-blue)` inside those portaled menus resolving to
+   nothing — e.g. a checked checkbox falling back to a transparent
+   background instead of blue, silently, with no console warning. `:root` is
+   the one ancestor every one of them actually shares.
+*/
+:root {
+	--iftp-nf-blue: #00609c;
+}
+
+.iftp-nf-settings {
 	max-width: 800px;
 }
 
+.iftp-nf-settings-header {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	margin-bottom: 18px;
+}
+
+.iftp-nf-brand-badge {
+	margin-top: 4px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	flex-shrink: 0;
+	border-radius: 12px;
+	background: linear-gradient(135deg, #00609c 0%, #001b2d 100%);
+}
+
+.iftp-nf-brand-badge img {
+	width: 24px;
+	height: 24px;
+}
+
+.iftp-nf-settings-header-p {
+	margin-bottom: 2px;
+}
+
+.iftp-nf-settings-header h2 {
+	margin: 0 0 2px;
+	font-size: 20px;
+}
+
+.iftp-nf-settings-header p {
+	margin: 0;
+	color: #50575e;
+	font-size: 13px;
+}
+
+.iftp-nf-settings .iftp-nf-card {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+	padding: 16px 20px;
+	margin-bottom: 16px;
+	max-width: 800px;
+	transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.iftp-nf-settings .iftp-nf-card:hover {
+	border-color: #c3c4c7;
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.iftp-nf-settings .iftp-nf-card h3 {
+	margin-top: 0;
+}
+
+/* Everywhere on this screen: primary buttons, secondary button hover/focus,
+   checkboxes, and input/select focus rings — `--iftp-nf-blue` itself is
+   declared on `:root` above. */
+
+.iftp-nf-settings .button-primary,
+.iftp-nf-entries .button-primary {
+	background: var(--iftp-nf-blue) !important;
+	border-color: var(--iftp-nf-blue) !important;
+}
+
+.iftp-nf-settings .button-primary:hover,
+.iftp-nf-settings .button-primary:focus,
+.iftp-nf-entries .button-primary:hover,
+.iftp-nf-entries .button-primary:focus {
+	background: var(--iftp-nf-blue) !important;
+	border-color: var(--iftp-nf-blue) !important;
+	filter: brightness(0.9);
+	color: #fff !important;
+}
+
+.iftp-nf-settings .button:not(.button-primary),
+.iftp-nf-entries .button:not(.button-primary) {
+	border-color: var(--iftp-nf-blue) !important;
+	color: var(--iftp-nf-blue) !important;
+}
+
+.iftp-nf-settings .button:not(.button-primary):hover,
+.iftp-nf-settings .button:not(.button-primary):focus,
+.iftp-nf-entries .button:not(.button-primary):hover,
+.iftp-nf-entries .button:not(.button-primary):focus {
+	border-color: var(--iftp-nf-blue) !important;
+	color: var(--iftp-nf-blue) !important;
+	filter: brightness(0.9);
+}
+
+/* A bit more "spice" on the entries screen specifically — a rounder radius
+   and a small hover lift on every button, matching the rest of the entries
+   table's rounded/animated language (status pills, the fake selects, the
+   pagination controls) instead of WP core's flat, square-edged default. */
+.iftp-nf-entries .button,
+.iftp-nf-entries .button-primary {
+	border-radius: 6px !important;
+	transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.iftp-nf-entries .button:hover,
+.iftp-nf-entries .button-primary:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 2px 6px rgba(0, 96, 156, 0.12);
+}
+
+.iftp-nf-entries .button:active,
+.iftp-nf-entries .button-primary:active {
+	transform: translateY(0);
+	box-shadow: none;
+}
+
+/* Same "spice" on both `.iftp-nf-settings` screens (Payments and
+   Confirmation Type — Connect/Disconnect, "Request Activation", Save
+   Settings alike) at Victor's request, so every button in this plugin's
+   admin reads as one consistent, modern design rather than the entries
+   screen being the only polished one. 8px rather than the entries screen's
+   6px, per Victor's own explicit ask. */
+.iftp-nf-settings .button,
+.iftp-nf-settings .button-primary {
+	border-radius: 8px !important;
+	transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.iftp-nf-settings .button:hover,
+.iftp-nf-settings .button-primary:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 3px 8px rgba(0, 96, 156, 0.16);
+}
+
+.iftp-nf-settings .button:active,
+.iftp-nf-settings .button-primary:active {
+	transform: translateY(0);
+	box-shadow: none;
+}
+
+/* "Request Activation" stays deliberately compact (it sits inline in a
+   methods-table cell, next to a status pill — see
+   `Admin\GatewaySettingsField`), so it keeps its own smaller radius/lift
+   rather than the full-size treatment above. */
+.iftp-nf-methods-table button.iftp-nf-request-activation {
+	border-radius: 6px !important;
+	transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.iftp-nf-methods-table button.iftp-nf-request-activation:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 2px 5px rgba(0, 96, 156, 0.14);
+}
+
+.iftp-nf-methods-table button.iftp-nf-request-activation:active {
+	transform: translateY(0);
+	box-shadow: none;
+}
+
+.iftp-nf-settings input[type="checkbox"],
+.iftp-nf-settings input[type="radio"],
+.iftp-nf-entries input[type="checkbox"],
+.iftp-nf-entries input[type="radio"],
+.iftp-nf-columns-menu input[type="checkbox"] {
+	accent-color: var(--iftp-nf-blue) !important;
+}
+
+/* WP core fully re-skins checkboxes/radios itself (border/background plus a
+   fixed white checkmark glyph via ::before) rather than relying on the
+   browser's native rendering, so `accent-color` above has no visible effect
+   on its own — this is what actually needs overriding. `.iftp-nf-columns-menu`
+   is included throughout this block (not just `.iftp-nf-entries`) because
+   that dropdown is portaled straight onto `<body>` (see `entries.js`,
+   `createPortalDropdown()`), outside the `.iftp-nf-entries` wrapper every
+   other rule here relies on — without it, the "Columns" menu's checkboxes
+   would fall back to a plain unstyled native checkbox. */
+.iftp-nf-settings input[type="checkbox"]:checked,
+.iftp-nf-settings input[type="radio"]:checked,
+.iftp-nf-entries input[type="checkbox"]:checked,
+.iftp-nf-entries input[type="radio"]:checked,
+.iftp-nf-columns-menu input[type="checkbox"]:checked {
+	background: var(--iftp-nf-blue) !important;
+	border-color: var(--iftp-nf-blue) !important;
+}
+
+.iftp-nf-settings input[type="checkbox"]:focus,
+.iftp-nf-settings input[type="radio"]:focus,
+.iftp-nf-entries input[type="checkbox"]:focus,
+.iftp-nf-entries input[type="radio"]:focus,
+.iftp-nf-columns-menu input[type="checkbox"]:focus {
+	box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--iftp-nf-blue) !important;
+}
+
+/* A small spring "pop" the instant a row (or select-all) checkbox is
+   checked, instead of the checked state just appearing — the entries table
+   is full of these, so it's worth it being a satisfying, tactile thing to
+   click rather than a flat native checkbox. Shared by the "Columns" menu's
+   visibility checkboxes too, for the same tactile feel. */
+.iftp-nf-entries input[type="checkbox"]:checked,
+.iftp-nf-columns-menu input[type="checkbox"]:checked {
+	animation: iftp-nf-checkbox-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+@keyframes iftp-nf-checkbox-pop {
+	0% {
+		transform: scale(0.7);
+	}
+
+	55% {
+		transform: scale(1.2);
+	}
+
+	100% {
+		transform: scale(1);
+	}
+}
+
+.iftp-nf-settings input[type="text"]:focus,
+.iftp-nf-settings input[type="number"]:focus,
+.iftp-nf-settings input[type="url"]:focus,
+.iftp-nf-settings select:focus,
+.iftp-nf-entries input[type="text"]:focus,
+.iftp-nf-entries input[type="search"]:focus,
+.iftp-nf-entries input[type="date"]:focus,
+.iftp-nf-entries input[type="number"]:focus,
+.iftp-nf-entries select:focus {
+	border-color: var(--iftp-nf-blue) !important;
+	box-shadow: 0 0 0 1px var(--iftp-nf-blue) !important;
+}
+
+/* Base look for every text/number/url input and `<select>` across both
+   `.iftp-nf-settings` screens (Backoffice Key, Gateway Key, Description,
+   Expiry Days on Payments; the redirect page/URL fields on Confirmation
+   Type) — otherwise plain WP-core boxes next to the rest of this plugin's
+   rounded, modern language, at Victor's request. The select's native arrow
+   is replaced with a custom chevron since `appearance: none` removes it
+   entirely. */
+.iftp-nf-settings input[type="text"],
+.iftp-nf-settings input[type="number"],
+.iftp-nf-settings input[type="url"],
+.iftp-nf-settings select {
+	box-sizing: border-box;
+	height: 38px;
+	padding: 0 14px;
+	border: 1px solid #d5d8dc;
+	border-radius: 8px;
+	background-color: #fff;
+	color: #2c3338;
+	font-size: 13px;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.iftp-nf-settings select {
+	appearance: none;
+	-webkit-appearance: none;
+	padding-right: 36px;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238c8f94' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 12px center;
+	background-size: 14px;
+	cursor: pointer;
+}
+
+.iftp-nf-settings input[type="text"]:hover,
+.iftp-nf-settings input[type="number"]:hover,
+.iftp-nf-settings input[type="url"]:hover,
+.iftp-nf-settings select:hover {
+	border-color: #b9bdc3;
+}
+
+#iftp-nf-methods-table-wrapper {
+	overflow-x: auto;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+}
+
 .iftp-nf-methods-table {
-	border-collapse: collapse;
+	border-collapse: separate;
+	border-spacing: 0;
+	width: 100%;
+}
+
+.iftp-nf-methods-table thead th {
+	background: linear-gradient(180deg, #fbfbfc 0%, #f3f4f5 100%);
+	border-bottom: 2px solid #dcdcde;
+	color: #3c434a;
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	padding: 10px 12px;
+}
+
+.iftp-nf-methods-table tbody td {
+	padding: 10px 12px;
+	font-size: 13px;
+	vertical-align: middle;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.iftp-nf-methods-table tbody tr:last-child td {
+	border-bottom: none;
+}
+
+.iftp-nf-methods-table tbody tr:hover {
+	background: #f9fbfc;
 }
 
 .iftp-nf-methods-table .iftp-nf-col-control {
@@ -48,6 +363,24 @@
 	height: auto;
 }
 
+/* The card-network (Visa/Mastercard) logo ifthenpay returns is noticeably
+   taller relative to its width than the other methods' icons, so it reads
+   oversized sitting in the same row height as MB Way/Multibanco/etc. —
+   capped to 2/3 of the shared 24px slot height, at Victor's request. */
+.iftp-nf-method-row[data-entity="CCARD"] .iftp-nf-logo-slot img {
+	max-height: 16px;
+}
+
+/* Status pill + "Request Activation" in one aligned row instead of the
+   button potentially wrapping/misaligning under the pill, at Victor's
+   request. */
+.iftp-nf-status-cell {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
 .iftp-nf-account-pill {
 	display: inline-block;
 	height: 24px;
@@ -55,6 +388,13 @@
 	padding: 0 10px;
 	background: #f0f0f1;
 	border-radius: 12px;
+	font-size: 12px;
+}
+
+.iftp-nf-methods-table button.iftp-nf-request-activation {
+	min-height: 24px;
+	line-height: 22px;
+	padding: 0 8px;
 	font-size: 12px;
 }
 
@@ -94,42 +434,141 @@
 	}
 }
 
+/* Save Settings: spinner + inline success status */
+
+.iftp-nf-save-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.iftp-nf-spinner {
+	display: none;
+	width: 14px;
+	height: 14px;
+	margin-right: 6px;
+	border: 2px solid rgba(255, 255, 255, 0.5);
+	border-top-color: #fff;
+	border-radius: 50%;
+	vertical-align: -2px;
+}
+
+#iftp-nf-save-settings.is-saving .iftp-nf-spinner {
+	display: inline-block;
+	animation: iftp-nf-spin 0.7s linear infinite;
+}
+
+@keyframes iftp-nf-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.iftp-nf-save-status {
+	font-size: 13px;
+	color: #007017;
+	opacity: 0;
+	transform: translateX(-4px);
+	transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.iftp-nf-save-status--success::before {
+	content: '\2713';
+	margin-right: 4px;
+	font-weight: 700;
+}
+
+.iftp-nf-save-status.is-visible {
+	opacity: 1;
+	transform: translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	#iftp-nf-save-settings.is-saving .iftp-nf-spinner {
+		animation: none;
+	}
+
+	.iftp-nf-save-status {
+		transition: none;
+	}
+}
+
 .iftp-nf-row--unprovisioned .iftp-nf-dimmed {
 	opacity: 0.5;
 }
 
-.iftp-nf-status--ok {
-	color: #007017;
-}
-
+/* A soft-tinted pill with a small dot — the dot carries a lighter, wider
+   "halo" ring behind it (a static box-shadow, not an animation) so it reads
+   as a status indicator rather than a flat bullet, at Victor's request.
+   Every color here is a colored-but-not-black text tone (never `#1d2327`
+   or pure black) over its own pale background tint. */
 .iftp-nf-status-badge {
-	display: inline-block;
-	padding: 2px 10px;
-	border-radius: 12px;
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	padding: 3px 10px 3px 9px;
+	border-radius: 999px;
 	font-size: 12px;
 	font-weight: 600;
 	text-transform: capitalize;
+	transform: scale(1);
+	transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.iftp-nf-status-badge::before {
+	content: '';
+	width: 6px;
+	height: 6px;
+	flex-shrink: 0;
+	border-radius: 50%;
+	background: currentColor;
+	box-shadow: 0 0 0 4px var(--iftp-nf-status-halo, transparent);
+}
+
+/* A bulk status change (`entries.js`, `updateRowStatusBadge()`) crossfades
+   the badge to its new value instead of the text/color just snapping —
+   faded out here while its class/label are swapped underneath, then
+   faded back in. */
+.iftp-nf-status-badge.is-swapping {
+	opacity: 0;
+	transform: scale(0.9);
 }
 
 .iftp-nf-status-badge--pending {
-	background: #fcf0d5;
-	color: #8a6100;
+	--iftp-nf-status-halo: rgba(150, 102, 11, 0.2);
+	background: #fdf3e0;
+	color: #96660b;
 }
 
 .iftp-nf-status-badge--paid {
-	background: #d5f2df;
-	color: #007017;
+	--iftp-nf-status-halo: rgba(26, 127, 75, 0.2);
+	background: #e6f6ec;
+	color: #1a7f4b;
 }
 
 .iftp-nf-status-badge--failed,
 .iftp-nf-status-badge--cancelled {
-	background: #fbe1e1;
-	color: #a72b2b;
+	--iftp-nf-status-halo: rgba(156, 47, 47, 0.18);
+	background: #fdeaea;
+	color: #9c2f2f;
 }
 
 .iftp-nf-status-badge--expired {
-	background: #f0f0f1;
-	color: #50575e;
+	--iftp-nf-status-halo: rgba(60, 67, 74, 0.22);
+	background: #e2e4e7;
+	color: #3c434a;
+}
+
+.iftp-nf-test-badge {
+	display: inline-block;
+	padding: 1px 8px;
+	margin-right: 6px;
+	border-radius: 12px;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	background: #2c3338;
+	color: #fff;
 }
 
 /* Entries screen */
@@ -140,61 +579,1259 @@
 	margin-bottom: 16px;
 }
 
-.iftp-nf-entries-toolbar {
+.iftp-nf-entries-card {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 8px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+	overflow: hidden;
+}
+
+.iftp-nf-entries-card-header {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 16px;
+	background: #fff;
+	border-bottom: 1px solid #e2e4e7;
+	overflow-x: auto;
+	overflow-y: hidden;
+	-webkit-overflow-scrolling: touch;
+	scrollbar-width: thin;
+}
+
+/* Status filter tabs: a row of pill buttons instead of WP core's plain
+   `.subsubsub` link-list-with-pipes — matches the rounded, colored language
+   the rest of this card already uses (status badges, pagination numbers).
+   Tabs and filters share one un-wrapped row (`nowrap` throughout) so the
+   whole toolbar scrolls sideways as a single strip on narrow/tablet
+   viewports instead of wrapping onto extra lines. */
+
+.iftp-nf-status-tabs {
+	display: flex;
+	flex-wrap: nowrap;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 2px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.iftp-nf-status-tabs li {
+	margin: 0;
+	flex-shrink: 0;
+}
+
+.iftp-nf-status-tab {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 4px 10px;
+	border-radius: 999px;
+	color: #50575e;
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 1.4;
+	white-space: nowrap;
+	text-decoration: none;
+	transition: background 0.15s ease, color 0.15s ease;
+}
+
+.iftp-nf-status-tab:hover,
+.iftp-nf-status-tab:focus {
+	background: #f0f6fc;
+	color: var(--iftp-nf-blue);
+}
+
+.iftp-nf-status-tab:active {
+	background: #e5eef7;
+}
+
+.iftp-nf-status-tab .count {
+	padding: 1px 6px;
+	border-radius: 999px;
+	background: rgba(0, 0, 0, 0.06);
+	color: inherit;
+	font-size: 10px;
+	font-weight: 600;
+	transition: transform 0.15s ease;
+}
+
+/* Pulses whenever a bulk action patches this count in place (see
+   `entries.js`, `updateTabCounts()`) instead of the number just snapping to
+   its new value after an AJAX response. */
+.iftp-nf-status-tab .count.is-pulsing {
+	animation: iftp-nf-count-pulse 0.32s ease;
+}
+
+@keyframes iftp-nf-count-pulse {
+	0% {
+		transform: scale(1);
+	}
+
+	40% {
+		transform: scale(1.3);
+	}
+
+	100% {
+		transform: scale(1);
+	}
+}
+
+.iftp-nf-status-tab.current {
+	background: var(--iftp-nf-blue);
+	color: #fff;
+}
+
+.iftp-nf-status-tab.current:hover,
+.iftp-nf-status-tab.current:focus {
+	color: #fff;
+	filter: brightness(0.94);
+}
+
+.iftp-nf-status-tab.current .count {
+	background: rgba(255, 255, 255, 0.25);
+	color: #fff;
+}
+
+.iftp-nf-toolbar-divider {
+	flex-shrink: 0;
+	width: 1px;
+	height: 20px;
+	background: #e2e4e7;
+	/* Pushes itself — and the filters form right after it — over to the far
+	   right of the header, leaving the status tabs pinned left. Collapses
+	   to 0 automatically once the bar is already overflowing (narrow/tablet
+	   widths), where there's no free space left to consume anyway. */
+	margin-left: auto;
+}
+
+.iftp-nf-entries-filters {
+	display: flex;
+	flex-wrap: nowrap;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 8px;
+}
+
+.iftp-nf-entries-filters > * {
+	flex-shrink: 0;
+}
+
+.iftp-nf-entries-filters select,
+.iftp-nf-entries-filters input[type="date"],
+.iftp-nf-entries-filters input[type="search"] {
+	box-sizing: border-box !important;
+	height: 32px !important;
+	padding: 0 10px !important;
+	border: 1px solid #d5d8dc;
+	border-radius: 6px;
+	background: #fff;
+	color: #3c434a;
+	font-size: 13px;
+	box-shadow: none;
+	min-height: 32px !important;
+}
+
+/* The "Filter" submit button, at the same 32px height as the dropdowns
+   and inputs beside it — WP core's own `.button` sizing otherwise runs a
+   little taller, making it look out of place next to them. `!important`
+   because WP core's own `.button` rules were still winning without it. */
+.iftp-nf-entries-filters .button {
+	display: inline-flex !important;
+	align-items: center !important;
+	box-sizing: border-box !important;
+	height: 30px !important;
+	min-height: 30px !important;
+	padding: 0 14px !important;
+	line-height: normal !important;
+}
+
+.iftp-nf-entries-filters-buttons{
+	display: inline-flex !important;
+	align-items: center !important;
+	box-sizing: border-box !important;
+	height: 30px !important;
+	min-height: 30px !important;
+	padding: 0 14px !important;
+	line-height: normal !important;
+}
+
+.iftp-nf-entries-filters select:focus,
+.iftp-nf-entries-filters input[type="date"]:focus,
+.iftp-nf-entries-filters input[type="search"]:focus {
+	border-color: var(--iftp-nf-blue);
+	box-shadow: 0 0 0 1px var(--iftp-nf-blue);
+}
+
+.iftp-nf-search {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+}
+
+.iftp-nf-search .dashicons {
+	position: absolute;
+	left: 10px;
+	width: 15px;
+	height: 15px;
+	font-size: 15px;
+	color: #8c8f94;
+	pointer-events: none;
+}
+
+.iftp-nf-search input[type="search"] {
+	min-width: 220px;
+	padding-left: 30px;
+	min-height: 30px;
+}
+
+.iftp-nf-reset-filters {
+	padding: 0 4px;
+	color: #646970;
+	font-size: 13px;
+	white-space: nowrap;
+	text-decoration: none;
+}
+
+.iftp-nf-reset-filters:hover,
+.iftp-nf-reset-filters:focus {
+	color: var(--iftp-nf-blue);
+	text-decoration: underline;
+}
+
+/* "Columns" control — lets the admin reorder/hide the table's columns (see
+   `entries.js`, `bindColumnsControl()`), persisted to `localStorage`. Sits
+   in the same toolbar row as the filters, styled like the fake-select
+   triggers beside it rather than like a filter input, since it isn't one. */
+
+.iftp-nf-columns-control {
+	display: inline-flex;
+	margin-left: 4px;
+}
+
+.iftp-nf-columns-trigger {
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box !important;
+	gap: 7px;
+	height: 32px !important;
+	padding: 0 12px !important;
+	border: 1px solid #d5d8dc;
+	border-radius: 6px;
+	background: #fff;
+	color: #3c434a;
+	font-size: 13px;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.iftp-nf-columns-trigger svg {
+	flex-shrink: 0;
+	color: #8c8f94;
+}
+
+.iftp-nf-columns-trigger:hover {
+	border-color: #b9bdc3;
+}
+
+.iftp-nf-columns-trigger:focus,
+.iftp-nf-columns-control.is-open .iftp-nf-columns-trigger {
+	border-color: var(--iftp-nf-blue);
+	box-shadow: 0 0 0 1px var(--iftp-nf-blue);
+	outline: none;
+}
+
+.iftp-nf-columns-menu {
+	width: 240px;
+	padding: 8px;
+}
+
+.iftp-nf-columns-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	max-height: 320px;
+	overflow-y: auto;
+}
+
+.iftp-nf-column-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 6px;
+	border-radius: 6px;
+	border-top: 2px solid transparent;
+	transition: background 0.1s ease, opacity 0.1s ease;
+}
+
+/* `!important` throughout this block: this menu is portaled onto `<body>`
+   (see `entries.js`, `createPortalDropdown()`), where WP core's own
+   `.wp-core-ui`/list-table styles carry enough specificity (and their own
+   `!important`s) to otherwise win over a plain class selector here. */
+.iftp-nf-column-item:hover {
+	background: #f0f6fc !important;
+}
+
+/* Same "goes blue" hover cue as every other item in this screen's
+   dropdowns (`.iftp-nf-dropdown-item:hover`) — the plain background
+   change above wasn't carrying that same cue on the column's own label. */
+.iftp-nf-column-item:hover .iftp-nf-column-toggle {
+	color: var(--iftp-nf-blue) !important;
+}
+
+.iftp-nf-column-item.is-dragging {
+	opacity: 0.4 !important;
+}
+
+.iftp-nf-column-item.is-drop-target {
+	border-top-color: var(--iftp-nf-blue) !important;
+}
+
+.iftp-nf-column-item.is-hidden {
+	color: #8c8f94 !important;
+}
+
+/* A real <button> (see `entries.js`) so ArrowUp/ArrowDown can reorder the
+   column while it's focused — reset to look like the plain decorative
+   handle it was before, not a native button. */
+.iftp-nf-column-drag-handle {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	flex-shrink: 0;
+	border: none;
+	background: none;
+	padding: 0;
+	border-radius: 4px;
+	color: #b9bdc3 !important;
+	font: inherit;
+	font-size: 12px;
+	line-height: 1;
+	letter-spacing: -2px;
+	cursor: grab;
+}
+
+.iftp-nf-column-item.is-dragging .iftp-nf-column-drag-handle {
+	cursor: grabbing;
+}
+
+.iftp-nf-column-drag-handle:hover,
+.iftp-nf-column-drag-handle:focus {
+	color: var(--iftp-nf-blue) !important;
+	outline: none;
+}
+
+.iftp-nf-column-drag-handle:focus-visible {
+	box-shadow: 0 0 0 2px var(--iftp-nf-blue) !important;
+}
+
+/* Sits where the drag handle would be, on a `positionLocked` column (ID,
+   Customer) — signals there's nothing to grab there, rather than leaving a
+   gap that reads as a rendering glitch. */
+.iftp-nf-column-lock-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	flex-shrink: 0;
+	color: #c3c4c7;
+}
+
+.iftp-nf-column-toggle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 1;
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.iftp-nf-column-toggle input[type="checkbox"] {
+	margin: 0 !important;
+}
+
+/* A `visibilityLocked` column's checkbox (ID, Customer, Amount, Status) is
+   disabled — still shown checked, just not interactive, since it can't
+   actually be unchecked from here. */
+.iftp-nf-column-toggle--locked {
+	cursor: default;
+}
+
+.iftp-nf-column-toggle--locked input[type="checkbox"] {
+	cursor: default;
+	opacity: 0.7;
+}
+
+.iftp-nf-columns-footer {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: 6px;
+	padding-top: 6px;
+	border-top: 1px solid #e2e4e7;
+}
+
+/* Applied to both the `<th>` and every row's `<td>` sharing a hidden
+   column's `data-col` (see `entries.js`, `applyLayout()`) — the column
+   count itself never changes, so no other layout adjustment is needed. */
+.iftp-nf-entries-table [data-col].iftp-nf-col-hidden {
+	display: none;
+}
+
+/* Bulk-actions bar: its own row below the table (never between the header
+   and the table) — hidden via `[hidden]` (not just faded), so it takes up
+   no space at all until something is actually checked. */
+
+.iftp-nf-entries-bulk-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 10px 16px;
+	background: var(--iftp-nf-blue);
+	color: #fff;
+	opacity: 0;
+	transform: translateY(6px);
+	transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.iftp-nf-entries-bulk-bar[hidden] {
+	display: none;
+}
+
+.iftp-nf-entries-bulk-bar.is-visible {
+	opacity: 1;
+	transform: translateY(0);
+}
+
+.iftp-nf-bulk-bar-left {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.iftp-nf-bulk-count {
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.iftp-nf-bulk-cancel {
+	padding: 0;
+	border: none;
+	background: none;
+	color: rgba(255, 255, 255, 0.85);
+	font-size: 13px;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.iftp-nf-bulk-cancel:hover,
+.iftp-nf-bulk-cancel:focus {
+	color: #fff;
+}
+
+.iftp-nf-bulk-cancel:active {
+	color: rgba(255, 255, 255, 0.65);
+}
+
+.iftp-nf-bulk-actions-trigger {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	height: 30px;
+	padding: 0 12px;
+	border: none;
+	border-radius: 6px;
+	background: #fff;
+	color: #3c434a;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.15s ease;
+}
+
+.iftp-nf-bulk-actions-trigger:hover,
+.iftp-nf-bulk-actions-trigger:focus {
+	background: #f0f0f1;
+}
+
+.iftp-nf-bulk-actions-trigger:active {
+	background: #e2e4e7;
+}
+
+.iftp-nf-bulk-actions-arrow {
+	transition: transform 0.15s ease;
+}
+
+.iftp-nf-bulk-actions.is-open .iftp-nf-bulk-actions-arrow {
+	transform: rotate(180deg);
+}
+
+/* Shared custom-dropdown look — the bulk "Actions" menu, and the "All
+   forms"/"per page" fake selects below all build one of these. Built by JS
+   and appended to <body> (a portal), positioned `fixed` from its trigger's
+   own bounding box so it's never clipped by `.iftp-nf-entries-card`'s
+   `overflow: hidden` (needed elsewhere for its rounded corners) — the same
+   technique the ifthenpay-payments-for-contactform7 plugin uses for its own
+   dropdowns. Always anchored to the bottom of its trigger and positioned
+   exactly once when it opens (see `entries.js`, `createPortalDropdown()`) —
+   it does not follow the trigger around on scroll/resize, it just closes,
+   so it never visibly drifts. */
+
+.iftp-nf-dropdown-menu {
+	position: fixed;
+	min-width: 200px;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 10px;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.06);
+	padding: 5px;
+	z-index: 100000;
+	transform-origin: top right;
+	animation: iftp-nf-menu-in 0.16s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes iftp-nf-menu-in {
+	from {
+		opacity: 0;
+		transform: scale(0.94) translateY(-4px);
+	}
+
+	to {
+		opacity: 1;
+		transform: scale(1) translateY(0);
+	}
+}
+
+/* Flipped variant (see `entries.js`, `createPortalDropdown()` -> `position()`)
+   for when a trigger sits too close to the bottom of the viewport for the
+   menu to open downward without most of it landing off-screen — grows from
+   the bottom-right corner instead, toward the trigger, rather than away
+   from it. */
+
+.iftp-nf-dropdown-menu--upward {
+	transform-origin: bottom right;
+	animation-name: iftp-nf-menu-in-upward;
+}
+
+@keyframes iftp-nf-menu-in-upward {
+	from {
+		opacity: 0;
+		transform: scale(0.94) translateY(4px);
+	}
+
+	to {
+		opacity: 1;
+		transform: scale(1) translateY(0);
+	}
+}
+
+.iftp-nf-dropdown-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 8px 10px;
+	border: none;
+	border-radius: 6px;
+	background: none;
+	color: #3c434a;
+	font-size: 13px;
+	text-align: left;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: background 0.1s ease;
+}
+
+.iftp-nf-dropdown-item:hover,
+.iftp-nf-dropdown-item:focus,
+.iftp-nf-dropdown-item.is-active {
+	background: #f0f6fc;
+	color: var(--iftp-nf-blue);
+}
+
+.iftp-nf-dropdown-item:active {
+	background: #e3f0fa;
+}
+
+.iftp-nf-dropdown-item--danger {
+	color: #a72b2b;
+}
+
+.iftp-nf-dropdown-item--danger:hover,
+.iftp-nf-dropdown-item--danger:focus,
+.iftp-nf-dropdown-item--danger.is-active {
+	background: #fbe1e1;
+	color: #a72b2b;
+}
+
+.iftp-nf-dropdown-item--danger:active {
+	background: #f6cfcf;
+}
+
+.iftp-nf-dropdown-dot {
+	width: 8px;
+	height: 8px;
+	flex-shrink: 0;
+	border-radius: 50%;
+}
+
+.iftp-nf-dropdown-divider {
+	height: 1px;
+	margin: 4px 2px;
+	background: #e2e4e7;
+}
+
+/* "All forms" / "entries per page" fake selects — the real <select> is kept
+   (just visually hidden, see `entries.js`, `enhanceSelect()`) so the
+   surrounding <form> still submits it exactly as a native one would; only
+   its trigger button and the dropdown list above are custom. */
+
+.iftp-nf-fake-select {
+	position: relative;
+	display: inline-flex;
+}
+
+.iftp-nf-fake-select select[hidden] {
+	display: none;
+}
+
+.iftp-nf-fake-select-trigger {
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box !important;
+	gap: 8px;
+	height: 32px !important;
+	max-width: 220px;
+	padding: 0 10px !important;
+	border: 1px solid #d5d8dc;
+	border-radius: 6px;
+	background: #fff;
+	color: #3c434a;
+	font-size: 13px;
+	cursor: pointer;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.iftp-nf-fake-select-trigger:hover {
+	border-color: #b9bdc3;
+}
+
+.iftp-nf-fake-select-trigger:focus,
+.iftp-nf-fake-select.is-open .iftp-nf-fake-select-trigger {
+	border-color: var(--iftp-nf-blue);
+	box-shadow: 0 0 0 1px var(--iftp-nf-blue);
+	outline: none;
+}
+
+.iftp-nf-fake-select-label {
+	overflow: hidden;
+	max-width: 170px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.iftp-nf-fake-select-arrow {
+	flex-shrink: 0;
+	color: #8c8f94;
+	transition: transform 0.15s ease;
+}
+
+.iftp-nf-fake-select.is-open .iftp-nf-fake-select-arrow {
+	transform: rotate(180deg);
+}
+
+/* "From"/"To" date filters — the real `input[type="date"]` is kept (just
+   visually hidden, see `entries.js`, `enhanceDateInput()`) so the filters
+   <form> still submits a plain `YYYY-MM-DD` value exactly as a native date
+   input would; only its trigger button and the calendar dropdown below are
+   custom, replacing the browser's own native date-picker UI so it matches
+   the rest of this screen's dropdowns instead of looking like an OS widget. */
+
+.iftp-nf-date-field {
+	position: relative;
+	display: inline-flex;
+}
+
+.iftp-nf-date-field input[type="date"][hidden] {
+	display: none;
+}
+
+.iftp-nf-date-trigger {
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box !important;
+	gap: 7px;
+	height: 32px !important;
+	padding: 0 10px !important;
+	border: 1px solid #d5d8dc;
+	border-radius: 6px;
+	background: #fff;
+	color: #3c434a;
+	font-size: 13px;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.iftp-nf-date-trigger:hover {
+	border-color: #b9bdc3;
+}
+
+.iftp-nf-date-trigger:focus,
+.iftp-nf-date-field.is-open .iftp-nf-date-trigger {
+	border-color: var(--iftp-nf-blue);
+	box-shadow: 0 0 0 1px var(--iftp-nf-blue);
+	outline: none;
+}
+
+.iftp-nf-date-icon {
+	flex-shrink: 0;
+	color: #8c8f94;
+}
+
+.iftp-nf-date-label.is-placeholder {
+	color: #8c8f94;
+}
+
+/* The calendar dropdown itself — same portal/positioning technique as
+   `.iftp-nf-dropdown-menu` (see `entries.js`, `createPortalDropdown()`), just
+   a wider panel with its own header/grid/footer instead of a plain item list. */
+
+.iftp-nf-calendar-menu {
+	width: 232px;
+	padding: 10px;
+}
+
+.iftp-nf-calendar-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 8px;
+}
+
+.iftp-nf-calendar-nav {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	border: none;
+	border-radius: 6px;
+	background: none;
+	color: #3c434a;
+	cursor: pointer;
+	transition: background 0.1s ease;
+}
+
+.iftp-nf-calendar-nav:hover,
+.iftp-nf-calendar-nav:focus {
+	background: #f0f6fc;
+	color: var(--iftp-nf-blue);
+}
+
+.iftp-nf-calendar-month-label {
+	font-size: 13px;
+	font-weight: 600;
+	color: #3c434a;
+	text-transform: capitalize;
+}
+
+.iftp-nf-calendar-weekdays,
+.iftp-nf-calendar-grid {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	gap: 2px;
+}
+
+.iftp-nf-calendar-weekday {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 24px;
+	color: #8c8f94;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+}
+
+.iftp-nf-calendar-day {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 28px;
+	border: none;
+	border-radius: 6px;
+	background: none;
+	color: #3c434a;
+	font-size: 12px;
+	cursor: pointer;
+	transition: background 0.1s ease, color 0.1s ease;
+}
+
+.iftp-nf-calendar-day:hover,
+.iftp-nf-calendar-day:focus {
+	background: #f0f6fc;
+	color: var(--iftp-nf-blue);
+}
+
+.iftp-nf-calendar-day.is-outside {
+	color: #c3c4c7;
+}
+
+.iftp-nf-calendar-day.is-today {
+	box-shadow: inset 0 0 0 1px var(--iftp-nf-blue);
+}
+
+.iftp-nf-calendar-day.is-selected,
+.iftp-nf-calendar-day.is-selected:hover,
+.iftp-nf-calendar-day.is-selected:focus {
+	background: var(--iftp-nf-blue);
+	color: #fff;
+	font-weight: 600;
+}
+
+.iftp-nf-calendar-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-top: 8px;
+	padding-top: 8px;
+	border-top: 1px solid #e2e4e7;
+}
+
+.iftp-nf-dropdown-footer-btn {
+	padding: 4px 6px;
+	border: none;
+	border-radius: 4px;
+	background: none;
+	color: var(--iftp-nf-blue);
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.1s ease;
+}
+
+.iftp-nf-dropdown-footer-btn:hover,
+.iftp-nf-dropdown-footer-btn:focus {
+	background: #f0f6fc;
+}
+
+.iftp-nf-dropdown-footer-btn--clear {
+	color: #a72b2b;
+}
+
+.iftp-nf-dropdown-footer-btn--clear:hover,
+.iftp-nf-dropdown-footer-btn--clear:focus {
+	background: #fbe1e1;
+}
+
+.iftp-nf-entries-card-footer {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	flex-wrap: wrap;
-	gap: 12px;
-	margin-bottom: 8px;
-}
-
-.iftp-nf-entries-toolbar .subsubsub {
-	margin: 0;
-}
-
-.iftp-nf-entries-search {
-	display: flex;
-	gap: 6px;
-}
-
-.iftp-nf-entries-search input[type="search"] {
-	min-width: 280px;
+	gap: 10px;
+	padding: 10px 16px;
+	background: #fff;
+	border-top: 1px solid #dcdcde;
 }
 
 .iftp-nf-entries-count {
 	color: #50575e;
 	font-size: 13px;
-	margin: 0 0 6px;
+}
+
+.iftp-nf-entries-table-wrap {
+	position: relative;
+	overflow-x: auto;
+}
+
+/* Filtering/sorting/paging here is a real `GET` navigation (see `entries.js`,
+   `bindTableLoadingSpinner()`), not an in-page fetch — so without this the
+   old table just sits there, unchanged, for however long the new page takes
+   to arrive. Shown the instant that navigation is triggered, covering the
+   table in place so a slow load reads as "working" instead of "stuck". */
+.iftp-nf-table-loading {
+	position: absolute;
+	inset: 0;
+	z-index: 10;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(255, 255, 255, 0.7);
+}
+
+.iftp-nf-table-loading[hidden] {
+	display: none;
+}
+
+.iftp-nf-table-spinner {
+	width: 30px;
+	height: 30px;
+	border: 3px solid rgba(0, 96, 156, 0.18);
+	border-top-color: var(--iftp-nf-blue);
+	border-radius: 50%;
+	animation: iftp-nf-spin 0.7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.iftp-nf-table-spinner {
+		animation-duration: 1.4s;
+	}
 }
 
 .iftp-nf-entries-table {
-	border-collapse: collapse;
+	border-collapse: separate;
+	border-spacing: 0;
+	width: 100%;
+	border: none;
+}
+
+.iftp-nf-entries-table thead th {
+	background: #fff !important;
+	border-bottom: 1px solid #dcdcde !important;
+	color: #484b4e !important;
+	font-size: 14px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	padding: 8px 12px !important;
+}
+
+.iftp-nf-entries-table tbody td {
+	padding: 6px 12px !important;
+	font-size: 13px;
+	vertical-align: middle;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.iftp-nf-entries-table tbody tr:last-child td {
+	border-bottom: none;
+}
+
+/* Sortable column headers (ID, Amount): a link wrapping the label plus a
+   small up/down arrow indicator. Both arrows show faint by default; the one
+   matching the active sort direction goes solid + brand-colored once that
+   column is the current `orderby`. */
+
+.iftp-nf-sortable {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	color: inherit;
+	text-decoration: none;
+}
+
+.iftp-nf-sortable:hover,
+.iftp-nf-sortable:focus {
+	color: var(--iftp-nf-blue);
+}
+
+.iftp-nf-sortable,
+.iftp-nf-sort-icon {
+	color: #00609c !important;
+	transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.iftp-nf-sort-icon {
+	display: inline-block;
+	position: relative;
+	width: 8px;
+	height: 10px;
+	opacity: 0.35;
+}
+
+.iftp-nf-sort-icon::before,
+.iftp-nf-sort-icon::after {
+	content: '';
+	position: absolute;
+	left: 0;
+	border-left: 4px solid transparent;
+	border-right: 4px solid transparent;
+}
+
+.iftp-nf-sort-icon::before {
+	top: 0;
+	border-bottom: 4px solid currentColor;
+}
+
+.iftp-nf-sort-icon::after {
+	bottom: 0;
+	border-top: 4px solid currentColor;
+}
+
+.iftp-nf-sortable.is-sorted {
+	color: var(--iftp-nf-blue);
+}
+
+.iftp-nf-sortable.is-sorted .iftp-nf-sort-icon {
+	opacity: 1;
+}
+
+.iftp-nf-sortable--asc .iftp-nf-sort-icon::after {
+	display: none;
+}
+
+.iftp-nf-sortable--desc .iftp-nf-sort-icon::before {
+	display: none;
+}
+
+.iftp-nf-entries-table .iftp-nf-col-check {
+	width: 1%;
+	white-space: nowrap;
+	text-align: center;
+}
+
+.iftp-main-checkbox{
+	margin-left: 0 !important;
+    margin-right: 4px !important;
 }
 
 .iftp-nf-entries-table .iftp-nf-col-narrow {
 	width: 1%;
 	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
 }
 
-.iftp-nf-entry-row:hover {
-	background: #f6f7f7;
+.iftp-nf-entries-table .iftp-nf-col-amount {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Customer column: name bold on top, email muted underneath — best-effort
+   from the submitted form's First/Last Name + Email fields (there's no
+   fixed "customer" concept in a Ninja Forms submission), see
+   `EntriesPage::customer_info()`. */
+.iftp-nf-customer-name {
+	font-weight: 600;
+	color: #3c434a;
+}
+
+.iftp-nf-customer-email {
+	color: #646970;
+	font-size: 12px;
+}
+
+/* Method column: a small logo+label pill instead of a bare entity string —
+   the reference design badges every method (MB Way, Multibanco, card,
+   Apple/Google Pay…), see `EntriesPage::render_method_cell()`. Neutral gray
+   rather than per-brand colors, since we only reliably know each method's
+   logo/alias from the connected account's own catalog, not its brand
+   palette. */
+.iftp-nf-method-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 24px;
+	padding: 0 10px;
+	border: 1px solid #dcdcde;
+	border-radius: 999px;
+	background: #fbfbfc;
+	color: #3c434a;
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.iftp-nf-method-pill img {
+	max-width: 20px;
+	max-height: 14px;
+	width: auto;
+	height: auto;
+}
+
+/* "Open" payment-link button/pill and its empty-state dash — its own
+   column now, rather than only a row action, matching the reference
+   design. */
+.iftp-nf-payment-link-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 24px;
+	padding: 0 10px;
+	border-radius: 6px;
+	background: #dcdee1;
+	color: #2c3338;
+	font-size: 12px;
+	font-weight: 600;
+	text-decoration: none;
+	transition: background 0.15s ease, color 0.15s ease;
+}
+
+.iftp-nf-payment-link-btn .dashicons {
+	width: 13px;
+	height: 13px;
+	font-size: 13px;
+}
+
+.iftp-nf-payment-link-btn:hover,
+.iftp-nf-payment-link-btn:focus {
+	background: #cfd2d6;
+	color: var(--iftp-nf-blue);
+}
+
+.iftp-nf-payment-link-empty {
+	color: #c3c4c7;
+}
+
+.iftp-nf-entries-table .iftp-nf-entries-empty {
+	padding: 32px 12px;
+	text-align: center;
+	color: #646970;
+}
+
+.iftp-nf-empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+}
+
+.iftp-nf-empty-icon {
+	font-size: 24px;
+	opacity: 0.6;
+}
+
+/* Hover-revealed text row actions right under the ID — WP core's own
+   list-table pattern (`WP_List_Table::row_actions()`) rather than a
+   dedicated actions column, matching the reference design's "View | Trash"
+   style. Sits close under the ID button and fades/slides smoothly into
+   place on row hover, rather than snapping in — the box stays in flow at
+   all times (never `display: none`), so nothing above/below it jumps. */
+.iftp-nf-row-actions {
+	display: flex;
+	gap: 6px;
+	margin-top: 1px;
+	font-size: 12px;
+	color: #646970;
+	opacity: 0;
+	transform: translateY(-3px);
+	pointer-events: none;
+	transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+.iftp-nf-entry-row:hover .iftp-nf-row-actions,
+.iftp-nf-entry-row:focus-within .iftp-nf-row-actions {
+	opacity: 1;
+	transform: translateY(0);
+	pointer-events: auto;
+}
+
+/* The ID button itself lifts slightly on the same hover — a subtle,
+   smooth cue that ties it to the actions appearing just underneath it. */
+.iftp-nf-col-narrow .iftp-nf-details-toggle {
+	transition: transform 0.22s ease;
+	color: #00609c !important;
+}
+
+.iftp-nf-entry-row:hover .iftp-nf-col-narrow .iftp-nf-details-toggle,
+.iftp-nf-entry-row:focus-within .iftp-nf-col-narrow .iftp-nf-details-toggle {
+	transform: translateY(-2px);
+	color: #00609c !important;
+}
+
+.iftp-nf-row-actions a {
+	color: var(--iftp-nf-blue);
+	text-decoration: none;
+	font-size: 12px;
+}
+
+.iftp-nf-row-actions a:hover,
+.iftp-nf-row-actions a:focus {
+	color: #004875;
+	text-decoration: underline;
+}
+
+.iftp-nf-row-actions-sep {
+	color: #c3c4c7;
+}
+
+.iftp-nf-entry-row {
+	animation: iftp-nf-row-in 0.3s ease both;
+}
+
+.iftp-nf-entries-table tbody tr.iftp-nf-entry-row {
+	transition: background 0.15s ease;
+}
+
+.iftp-nf-entries-table tbody tr.iftp-nf-entry-row:hover {
+	background: #f0f6fc;
+}
+
+/* A selected row (its `.iftp-nf-row-check` checkbox checked) gets its own
+   light-blue tint — plain `:hover` above only applies while nothing in that
+   row is checked. Hovering a selected row stacks a deeper blue on top of
+   that tint rather than just repeating the same `:hover` background, so the
+   two states stay visually distinct instead of hover swallowing the
+   "selected" cue. */
+.iftp-nf-entries-table tbody tr.iftp-nf-entry-row:has(.iftp-nf-row-check:checked) {
+	background: rgba(0, 96, 156, 0.08);
+}
+
+.iftp-nf-entries-table tbody tr.iftp-nf-entry-row:has(.iftp-nf-row-check:checked):hover {
+	background: rgba(0, 96, 156, 0.16);
+}
+
+.iftp-nf-entry-row.is-removing {
+	animation: iftp-nf-row-out 0.22s ease forwards;
+}
+
+@keyframes iftp-nf-row-in {
+	from {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes iftp-nf-row-out {
+	from {
+		opacity: 1;
+	}
+
+	to {
+		opacity: 0;
+		transform: scale(0.98);
+	}
 }
 
 .iftp-nf-details-toggle {
-	color: #2271b1;
+	color: var(--iftp-nf-blue) !important;
 	cursor: pointer;
 }
 
 .iftp-nf-details-toggle:hover {
-	color: #135e96;
+	color: #004875;
 	text-decoration: underline;
 }
 
 .iftp-nf-entry-details td {
-	background: #f9f9f9;
+	background: #fff;
 	padding: 16px 20px;
 	border-top: none;
+}
+
+.iftp-nf-entry-details.iftp-nf-details-anim td {
+	animation: iftp-nf-details-in 0.2s ease both;
+}
+
+@keyframes iftp-nf-details-in {
+	from {
+		opacity: 0;
+		transform: translateY(-6px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
 }
 
 .iftp-nf-details-grid {
@@ -205,65 +1842,368 @@
 	font-size: 13px;
 }
 
-.iftp-nf-entries-table .tablenav-pages {
+/* Confirm modal (see `EntriesPage::render_confirm_modal()`) — a single
+   reusable dialog standing in for the browser's native `window.confirm()`
+   before a bulk delete/status change, so the action stays inside the same
+   interface instead of an OS-level popup interrupting it. */
+
+.iftp-nf-modal {
+	position: fixed;
+	inset: 0;
+	z-index: 100050;
 	display: flex;
 	align-items: center;
-	gap: 10px;
-	padding: 12px 0;
+	justify-content: center;
+	padding: 16px;
+	opacity: 0;
+	transition: opacity 0.2s ease;
 }
 
-.iftp-nf-entries-page-info {
+.iftp-nf-modal[hidden] {
+	display: none;
+}
+
+.iftp-nf-modal.is-open {
+	opacity: 1;
+}
+
+.iftp-nf-modal-overlay {
+	position: absolute;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.5);
+}
+
+.iftp-nf-modal-box {
+	position: relative;
+	width: 420px;
+	max-width: 100%;
+	background: #fff;
+	border-radius: 10px;
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25), 0 4px 16px rgba(0, 0, 0, 0.12);
+	padding: 20px 22px;
+	transform: scale(0.95) translateY(-8px);
+	transition: transform 0.26s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.iftp-nf-modal.is-open .iftp-nf-modal-box {
+	transform: none;
+}
+
+.iftp-nf-modal-box h2 {
+	margin: 0 0 8px;
+	font-size: 16px;
+	line-height: 1.3;
+}
+
+.iftp-nf-modal-box p {
+	margin: 0 0 18px;
 	color: #50575e;
 	font-size: 13px;
+	line-height: 1.5;
 }
 
-/* Peeking ninja mascot — decorative only. Real class names/values
-   (nf-shy-ninja-returning, nf-shy-ninja-scooted, the clamp()s, the
-   cubic-beziers) are Ninja Forms' own, adapted to stay inside this plugin's
-   own page instead of the whole viewport: `position: absolute` inside
-   `.iftp-nf-entries` (itself `position: relative`) replaces their
-   `position: fixed`/`sticky` off the full browser viewport, so the mascot
-   can never render over the WP admin sidebar menu regardless of its
-   collapsed/expanded state; `50vw` (viewport-wide center) becomes `50%`
-   (center of this page's own content column) for the same reason; the
-   site-theme custom properties (--global-content-width etc.) become plain
-   viewport-relative fallbacks for the base clamp()s, since those still make
-   sense as proportional sizing.
-   Both directions (left<->center) use the identical transition — Ninja
-   Forms' own CSS gives "returning" a distinct slow easing, but that read as
-   an inconsistent slide once mirrored here, so it's dropped in favor of one
-   shared bouncy transition both ways. */
-
-.iftp-nf-entries {
-	position: relative;
-	padding-bottom: 130px;
+.iftp-nf-modal-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
 }
 
-.nf-spark-peeking-ninja-wrapper {
-	position: absolute;
-	bottom: 0;
-	left: clamp(24px, 6vw, 95px);
-	width: clamp(70px, 6.66667vw, 126px);
-	overflow: hidden;
-	transform: translateX(-50%);
-	transition: left .4s cubic-bezier(.34, 1.56, .64, 1), bottom .4s cubic-bezier(.34, 1.56, .64, 1), transform .4s cubic-bezier(.34, 1.56, .64, 1);
-	z-index: 10;
+.iftp-nf-modal-cancel {
+	height: 32px;
+	padding: 0 14px;
+	border: 1px solid #d5d8dc;
+	border-radius: 6px;
+	background: #fff;
+	color: #3c434a;
+	font-size: 13px;
 	cursor: pointer;
-	color: #000;
+	transition: background 0.15s ease;
+}
+
+.iftp-nf-modal-cancel:hover,
+.iftp-nf-modal-cancel:focus {
+	background: #f0f0f1;
+}
+
+.iftp-nf-modal-cancel:active {
+	background: #e2e4e7;
+}
+
+.iftp-nf-modal-confirm {
+	height: 32px;
+	padding: 0 14px;
+	border: none;
+	border-radius: 6px;
+	background: var(--iftp-nf-blue);
+	color: #fff;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: filter 0.15s ease;
+}
+
+.iftp-nf-modal-confirm:hover,
+.iftp-nf-modal-confirm:focus {
+	filter: brightness(0.92);
+}
+
+.iftp-nf-modal-confirm:active {
+	filter: brightness(0.85);
+}
+
+.iftp-nf-modal-confirm--danger {
+	background: #a72b2b;
+}
+
+/* Toast (see `EntriesPage::render_toast()`) — success/error feedback after a
+   bulk action, replacing `window.alert()` and giving the in-place ("no
+   reload") update flow visible confirmation that something happened. */
+
+.iftp-nf-toast {
+	position: fixed;
+	right: 24px;
+	bottom: 24px;
+	z-index: 100060;
+	display: flex;
+	align-items: center;
+	max-width: 360px;
+	padding: 12px 16px;
+	background: #1d2327;
+	color: #fff;
+	border-radius: 10px;
+	border-left: 3px solid #00a32a;
+	box-shadow: 0 8px 30px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.12);
+	font-size: 13px;
+	line-height: 1.4;
+	transform: translateY(16px);
+	opacity: 0;
+	pointer-events: none;
+	transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.22s ease;
+}
+
+.iftp-nf-toast[hidden] {
+	display: none;
+}
+
+.iftp-nf-toast.is-visible {
+	transform: translateY(0);
+	opacity: 1;
 	pointer-events: auto;
 }
 
+.iftp-nf-toast--error {
+	border-left-color: #d63638;
+}
+
+@media (max-width: 480px) {
+	.iftp-nf-toast {
+		right: 16px;
+		left: 16px;
+		bottom: 16px;
+		max-width: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.iftp-nf-entry-row,
+	.iftp-nf-entry-row.is-removing,
+	.iftp-nf-entry-details.iftp-nf-details-anim td,
+	.iftp-nf-entries-bulk-bar,
+	.iftp-nf-entries-table tbody tr.iftp-nf-entry-row,
+	.iftp-nf-status-badge,
+	.iftp-nf-status-tab .count,
+	.iftp-nf-entries input[type="checkbox"]:checked,
+	.iftp-nf-columns-menu input[type="checkbox"]:checked,
+	.iftp-nf-dropdown-menu,
+	.iftp-nf-modal,
+	.iftp-nf-modal-box,
+	.iftp-nf-toast,
+	.iftp-nf-fake-select-arrow,
+	.iftp-nf-entries .button,
+	.iftp-nf-entries .button-primary,
+	.iftp-nf-page-btn,
+	.iftp-nf-page-number,
+	.iftp-nf-page-jump input[type="number"] {
+		animation: none;
+		transition: none;
+	}
+}
+
+/* Pagination: << < Pag. 1 [2] 4 5 … x [go] > >> */
+
+.iftp-nf-pagination {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.iftp-nf-page-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 30px;
+	height: 30px;
+	padding: 0 6px;
+	border: 1px solid #d5d8dc;
+	border-radius: 6px;
+	background: #fff;
+	color: var(--iftp-nf-blue);
+	font-size: 14px;
+	line-height: 1;
+	text-decoration: none;
+	transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.iftp-nf-page-btn:hover {
+	background: #f0f6fc;
+	border-color: var(--iftp-nf-blue);
+	box-shadow: 0 2px 6px rgba(0, 96, 156, 0.12);
+	transform: translateY(-1px);
+}
+
+.iftp-nf-page-btn:active {
+	transform: translateY(0);
+	box-shadow: none;
+}
+
+.iftp-nf-page-btn.is-disabled {
+	color: #c3c4c7;
+	background: #f6f7f7;
+	cursor: default;
+}
+
+.iftp-nf-page-label {
+	color: #50575e;
+	font-size: 13px;
+	margin: 0 2px 0 6px;
+}
+
+.iftp-nf-page-numbers {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.iftp-nf-page-number {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 30px;
+	height: 30px;
+	padding: 0 6px;
+	border-radius: 6px;
+	color: var(--iftp-nf-blue);
+	font-size: 13px;
+	text-decoration: none;
+	transition: background 0.15s ease, transform 0.15s ease;
+}
+
+a.iftp-nf-page-number:hover {
+	background: #f0f6fc;
+	transform: translateY(-1px);
+}
+
+a.iftp-nf-page-number:active {
+	transform: translateY(0);
+}
+
+.iftp-nf-page-number.is-current {
+	background: var(--iftp-nf-blue);
+	color: #fff;
+	font-weight: 600;
+}
+
+.iftp-nf-page-ellipsis {
+	color: #a7aaad;
+	padding: 0 2px;
+}
+
+.iftp-nf-page-jump {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin-left: 8px;
+	padding-left: 10px;
+	border-left: 1px solid #dcdcde;
+}
+
+.iftp-nf-page-jump input[type="number"] {
+	width: 56px;
+	height: 30px;
+	border: 1px solid #d5d8dc;
+	border-radius: 6px;
+	text-align: center;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+	min-height: 32px !important;
+}
+
+.iftp-nf-page-jump input[type="number"]:focus {
+	border-color: var(--iftp-nf-blue);
+	box-shadow: 0 0 0 1px var(--iftp-nf-blue);
+	outline: none;
+}
+
+.iftp-nf-page-jump .button {
+	height: 30px;
+	line-height: 28px;
+	padding: 0 12px;
+	border-radius: 6px !important;
+	transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.iftp-nf-page-jump .button:hover {
+	box-shadow: 0 2px 6px rgba(0, 96, 156, 0.15);
+	transform: translateY(-1px);
+}
+
+.iftp-nf-page-jump .button:active {
+	transform: translateY(0);
+	box-shadow: none;
+}
+
+/* Peeking ninja mascot — decorative only, self-contained (no AJAX, no
+   persisted state). Class names intentionally mimic Ninja Forms' own
+   internal naming (`nf-shy-ninja-*`, `nf-spark-peeking-ninja*`) rather than
+   this plugin's `iftp-nf-` namespace used elsewhere in this file, matching
+   the mascot's original design intent: it reads as a native NF easter egg,
+   not a bolted-on ifthenpay widget. `position: fixed` + the `left`/`bottom`
+   values below keep him clear of the WP admin sidebar and anchored to the
+   bottom-left of the viewport regardless of how far the page scrolls. */
+
+.iftp-nf-entries {
+	position: relative;
+	padding-bottom: 110px;
+}
+
+/* 1. Base / home resting state — smaller than the original design. */
+.nf-spark-peeking-ninja-wrapper {
+	position: fixed;
+	bottom: 0; /* Sits right on the page's bottom edge. */
+	left: calc(160px + clamp(24px, 6vw, 95px)); /* Clears the WP admin sidebar */
+	width: clamp(40px, 3.73333vw, 72px); /* Smaller overall mascot. */
+	overflow: visible; /* The smoke puff below is allowed to bleed past his own bounds. */
+	transform: translateX(-50%);
+	transition: left .4s cubic-bezier(.34, 1.56, .64, 1), bottom .4s cubic-bezier(.34, 1.56, .64, 1) .25s, transform .4s cubic-bezier(.34, 1.56, .64, 1) .25s;
+	z-index: 10;
+	cursor: pointer;
+	color: #1e1e1e;
+	pointer-events: auto;
+}
+
+/* 2. Instant Cut State */
 .nf-spark-peeking-ninja-wrapper.nf-shy-ninja-no-transition {
 	transition: none !important;
 }
 
-.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-scooted {
-	left: 50%;
+/* 3. Hover step 1 & 3: hops right, still visible. */
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-right {
+	left: calc(160px + clamp(24px, 6vw, 95px) + 60px);
 }
 
-.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-fled {
-	left: 50%;
-	bottom: -160px;
+/* 4. Hover step 4: fully exits off-screen to the left. */
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-exit-left {
+	left: -80px;
 }
 
 .nf-spark-peeking-ninja-wrapper.nf-shy-ninja-shake {
@@ -278,6 +2218,15 @@
 	80% { transform: translateX(-50%) translateX(4px) rotate(2deg); }
 }
 
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-idle-tremble {
+	animation: iftp-nf-ninja-tremble 2.6s ease-in-out infinite;
+}
+
+@keyframes iftp-nf-ninja-tremble {
+	0%, 100% { transform: translateX(-50%) translateY(0); }
+	50% { transform: translateX(-50%) translateY(-2px); }
+}
+
 .nf-spark-peeking-ninja {
 	width: 100%;
 }
@@ -286,4 +2235,321 @@
 	display: block;
 	width: 100%;
 	height: auto;
+}
+
+/* Smoke-bomb puff right as he exits off-screen (quick, small). */
+.nf-spark-peeking-ninja-wrapper__smoke {
+	position: absolute;
+	left: 50%;
+	bottom: 0;
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	background: radial-gradient(circle, rgba(180, 180, 180, 0.9) 0%, rgba(180, 180, 180, 0) 70%);
+	transform: translate(-50%, 10%) scale(0);
+	opacity: 0;
+	pointer-events: none;
+}
+
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-active .nf-spark-peeking-ninja-wrapper__smoke {
+	animation: iftp-nf-smoke-puff .6s ease-out;
+}
+
+@keyframes iftp-nf-smoke-puff {
+	0% { transform: translate(-50%, 10%) scale(0.2); opacity: 0.8; }
+	100% { transform: translate(-50%, 10%) scale(2.2); opacity: 0; }
+}
+
+/* Slower "grenade falls, cloud rises and holds, then clears" cover, played
+   over his teleport back home while fully off-screen. */
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke {
+	animation: iftp-nf-smoke-cover 1.8s ease-in-out;
+}
+
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja {
+	animation: nf-shy-ninja-rise 1.8s ease-in-out;
+}
+
+@keyframes iftp-nf-smoke-cover {
+	0% { transform: translate(-50%, 40%) scale(0); opacity: 0; }
+	30% { transform: translate(-50%, 0%) scale(2.6); opacity: 0.95; }
+	70% { transform: translate(-50%, 0%) scale(2.6); opacity: 0.95; }
+	100% { transform: translate(-50%, -10%) scale(3.2); opacity: 0; }
+}
+
+@keyframes nf-shy-ninja-rise {
+	0% { transform: translateY(100%); opacity: 0; }
+	40% { transform: translateY(100%); opacity: 0; }
+	100% { transform: translateY(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.nf-spark-peeking-ninja-wrapper,
+	.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-shake,
+	.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-idle-tremble,
+	.nf-spark-peeking-ninja-wrapper__smoke,
+	.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-active .nf-spark-peeking-ninja-wrapper__smoke,
+	.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke,
+	.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja {
+		transition: none;
+		animation: none;
+	}
+}
+
+/* Easter-egg footer toggle dot (see `EntriesPage::inject_ninja_toggle()`) —
+   a near-invisible dot slipped into the WP admin footer text, right before
+   "Thank you for creating with WordPress." - i.e. exactly where the peeking
+   ninja rests, between the admin sidebar and that footer line. The visible
+   dot is tiny and almost fully transparent at rest; the actual clickable
+   area is padded out well past it (via `background-clip`) so it's still
+   easy to hit once you've spotted it. Finding it is the point, so no
+   visible label - just an aria-label for screen readers. */
+.iftp-nf-ninja-toggle {
+	display: inline-block;
+	width: 3px;
+	height: 3px;
+	margin: 0 2px 0 0;
+	padding: 6px;
+	border: 0;
+	border-radius: 50%;
+	background: currentColor;
+	background-clip: content-box;
+	opacity: .05;
+	cursor: pointer;
+	vertical-align: middle;
+	transition: opacity .2s ease;
+}
+
+.iftp-nf-ninja-toggle:hover,
+.iftp-nf-ninja-toggle:focus-visible {
+	opacity: .35;
+}
+
+.iftp-nf-ninja-toggle:focus-visible {
+	outline: 1px dotted currentColor;
+	outline-offset: 2px;
+}
+
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-hidden {
+	display: none;
+}
+
+/* Confirmation Type screen (`Admin\ConfirmationPage`): a rounded pill
+   sub-nav for Paid/Pending/Failed/Cancelled, deliberately styled apart from
+   Ninja Forms' own bordered `.nav-tab-wrapper` tabs above it (Settings /
+   Licenses / Payments / Confirmation Type), at Victor's request — the two
+   navs read as distinct levels instead of a visually duplicated header. */
+
+.iftp-nf-confirmation-tabs,
+.iftp-nf-type-switch {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin: 0 0 18px;
+	padding: 4px;
+	background: #f0f0f1;
+	border-radius: 10px;
+}
+
+.iftp-nf-confirmation-tab,
+.iftp-nf-type-option {
+	border: none;
+	background: none;
+	padding: 8px 16px;
+	border-radius: 8px;
+	color: #50575e;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.15s ease, color 0.15s ease;
+}
+
+.iftp-nf-confirmation-tab:hover,
+.iftp-nf-confirmation-tab:focus,
+.iftp-nf-type-option:hover,
+.iftp-nf-type-option:focus {
+	color: var(--iftp-nf-blue);
+}
+
+.iftp-nf-confirmation-tab.is-active,
+.iftp-nf-type-option.is-active {
+	background: #fff;
+	color: var(--iftp-nf-blue);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.iftp-nf-confirmation-panel[hidden] {
+	display: none;
+}
+
+/* "Confirmation Type" field (replaces a plain `<select>` inside a WP core
+   `.form-table` row) — the same segmented pill switch as the
+   Paid/Pending/Failed/Cancelled nav above it (`.iftp-nf-type-switch` shares
+   `.iftp-nf-confirmation-tabs`'/`.iftp-nf-confirmation-tab`'s own rules
+   above, just under its own class name so `bindTabs()`'s `querySelectorAll`
+   in confirmation.js never picks these buttons up too), at Victor's
+   request, so the whole "Paid" panel reads as one consistent, modern
+   design instead of a plain form control sitting next to it. */
+
+.iftp-nf-type-field {
+	margin-bottom: 18px;
+}
+
+.iftp-nf-type-label {
+	display: block;
+	margin-bottom: 8px;
+	font-weight: 600;
+}
+
+.iftp-nf-type-switch {
+	margin-bottom: 0;
+}
+
+.iftp-nf-confirmation-option + .iftp-nf-confirmation-option {
+	margin-top: 14px;
+}
+
+.iftp-nf-confirmation-option[hidden] {
+	display: none;
+}
+
+/* "Redirect Page" dropdown and "Redirect URL" field otherwise get the
+   shared `.iftp-nf-settings input[type="url"]`/`select` base styling above
+   at full width — capped here so a very long field doesn't stretch across
+   the whole card. */
+.iftp-nf-confirmation select,
+.iftp-nf-confirmation input[type="url"] {
+	width: 100%;
+	max-width: 420px;
+}
+
+.iftp-nf-confirmation-option > label {
+	display: block;
+	margin-bottom: 6px;
+	font-weight: 600;
+}
+
+/* Popup message field: "Normal" (a `contenteditable` view, with a small
+   bold/italic toolbar) and "Raw" (the underlying HTML in a plain
+   `<textarea>`) — two synced views over the same value, at Victor's
+   request, so a message can be written without HTML knowledge but its
+   source is still one click away. See `assets/js/confirmation.js`,
+   `bindMessageEditors()`. */
+
+.iftp-nf-message-editor {
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.iftp-nf-message-tabs {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	padding: 6px 8px;
+	background: #fbfbfc;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.iftp-nf-message-tab {
+	border: none;
+	background: none;
+	padding: 5px 10px;
+	border-radius: 6px;
+	color: #50575e;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.15s ease, color 0.15s ease;
+}
+
+.iftp-nf-message-tab:hover,
+.iftp-nf-message-tab:focus {
+	color: var(--iftp-nf-blue);
+}
+
+.iftp-nf-message-tab.is-active {
+	background: #e7f1f8;
+	color: var(--iftp-nf-blue);
+}
+
+.iftp-nf-message-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	margin-left: auto;
+	padding-left: 8px;
+	border-left: 1px solid #dcdcde;
+}
+
+.iftp-nf-message-format {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border: none;
+	border-radius: 4px;
+	background: none;
+	color: #3c434a;
+	font-size: 12px;
+	cursor: pointer;
+	transition: background 0.1s ease;
+}
+
+.iftp-nf-message-format:hover,
+.iftp-nf-message-format:focus {
+	background: #e2e4e7;
+	color: var(--iftp-nf-blue);
+}
+
+.iftp-nf-message-normal,
+.iftp-nf-message-raw {
+	display: block;
+	width: 100%;
+	box-sizing: border-box;
+	min-height: 84px;
+	padding: 10px 12px;
+	border: none;
+	font-size: 13px;
+	line-height: 1.6;
+	color: #2c3338;
+}
+
+.iftp-nf-message-normal {
+	outline: none;
+}
+
+.iftp-nf-message-normal:empty::before {
+	content: attr(data-placeholder);
+	color: #8c8f94;
+}
+
+.iftp-nf-message-raw {
+	resize: vertical;
+	font-family: Consolas, Monaco, monospace;
+}
+
+.iftp-nf-message-normal[hidden],
+.iftp-nf-message-raw[hidden] {
+	display: none;
+}
+
+.iftp-nf-confirmation-checkbox {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	margin-top: 10px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+/* "Save Settings" and every other button on this screen already get an 8px
+   radius plus the hover lift from the shared `.iftp-nf-settings .button`
+   rule above (covers the Payments tab identically, at Victor's request) —
+   just a little extra horizontal padding here since these buttons sit
+   inside a narrower card than the Payments tab's. */
+.iftp-nf-confirmation .button,
+.iftp-nf-confirmation .button-primary {
+	padding: 0 20px !important;
 }

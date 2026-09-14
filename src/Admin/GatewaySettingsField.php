@@ -38,7 +38,7 @@ class GatewaySettingsField
 
         ob_start();
         ?>
-        <table class="widefat striped iftp-nf-methods-table">
+        <table class="iftp-nf-methods-table">
             <thead>
                 <tr>
                     <th class="iftp-nf-col-control"><?php esc_html_e('Enabled', 'ifthenpay-payments-for-ninja-forms'); ?></th>
@@ -124,18 +124,20 @@ class GatewaySettingsField
                 <?php endif; ?>
             </td>
             <td>
-                <?php if ($provisioned) : ?>
-                    <span class="iftp-nf-status iftp-nf-status--ok"><?php esc_html_e('Activated', 'ifthenpay-payments-for-ninja-forms'); ?></span>
-                <?php else : ?>
-                    <span class="iftp-nf-status iftp-nf-dimmed"><?php esc_html_e('Not activated', 'ifthenpay-payments-for-ninja-forms'); ?></span>
-                    <button
-                        type="button"
-                        class="button button-secondary iftp-nf-request-activation"
-                        data-entity="<?php echo esc_attr($method['entity']); ?>"
-                    >
-                        <?php esc_html_e('Request Activation', 'ifthenpay-payments-for-ninja-forms'); ?>
-                    </button>
-                <?php endif; ?>
+                <div class="iftp-nf-status-cell">
+                    <?php if ($provisioned) : ?>
+                        <span class="iftp-nf-status-badge iftp-nf-status-badge--paid"><?php esc_html_e('Activated', 'ifthenpay-payments-for-ninja-forms'); ?></span>
+                    <?php else : ?>
+                        <span class="iftp-nf-status-badge iftp-nf-status-badge--expired"><?php esc_html_e('Not activated', 'ifthenpay-payments-for-ninja-forms'); ?></span>
+                        <button
+                            type="button"
+                            class="button button-secondary iftp-nf-request-activation"
+                            data-entity="<?php echo esc_attr($method['entity']); ?>"
+                        >
+                            <?php esc_html_e('Request Activation', 'ifthenpay-payments-for-ninja-forms'); ?>
+                        </button>
+                    <?php endif; ?>
+                </div>
             </td>
         </tr>
         <?php

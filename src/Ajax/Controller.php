@@ -7,6 +7,7 @@ namespace Ifthenpay\NinjaForms\Ajax;
 use Ifthenpay\NinjaForms\Admin\GatewaySettingsField;
 use Ifthenpay\NinjaForms\Api\IfthenpayClient;
 use Ifthenpay\NinjaForms\Mail\IfthenpayEmailHelper;
+use Ifthenpay\NinjaForms\NinjaForms\SubmissionStore;
 use Ifthenpay\NinjaForms\Repository\SettingsRepository;
 use Ifthenpay\NinjaForms\Sync\GatewaySync;
 
@@ -48,6 +49,7 @@ class Controller
         add_action('wp_ajax_iftp_nf_select_gateway_key', [$this, 'select_gateway_key']);
         add_action('wp_ajax_iftp_nf_save_settings', [$this, 'save_settings']);
         add_action('wp_ajax_iftp_nf_request_activation', [$this, 'request_activation']);
+        add_action('wp_ajax_iftp_nf_save_confirmation_settings', [$this, 'save_confirmation_settings']);
     }
 
     public function connect_backoffice(): void
@@ -136,6 +138,41 @@ class Controller
         $this->settings->set_expiry_days($expiry_days);
 
         wp_send_json_success(['table_html' => $this->methods_field->render()]);
+    }
+
+    /**
+     * Saves the "Confirmation Type" tab (`Admin\ConfirmationPage`): the
+     * "Paid" popup/page/URL choice plus all four statuses' popup messages.
+     * Messages are sanitized with `wp_kses_post()`, not
+     * `sanitize_textarea_field()` — the admin screen's message field allows
+     * simple formatting (bold/italic) via its "Normal" contenteditable view
+     * (`assets/js/confirmation.js`), and `assets/js/frontend.js` renders the
+     * saved value as HTML, not plain text.
+     */
+    public function save_confirmation_settings(): void
+    {
+        $this->guard();
+
+        $paid_type       = sanitize_text_field(wp_unslash($_POST['paid_type'] ?? ''));
+        $paid_page_id    = (int) ($_POST['paid_page_id'] ?? 0);
+        $paid_url        = esc_url_raw(wp_unslash($_POST['paid_url'] ?? ''));
+        $show_entry_data = ! empty($_POST['show_entry_data']);
+
+        $paid_message      = wp_kses_post(wp_unslash($_POST['paid_message'] ?? ''));
+        $pending_message   = wp_kses_post(wp_unslash($_POST['pending_message'] ?? ''));
+        $failed_message    = wp_kses_post(wp_unslash($_POST['failed_message'] ?? ''));
+        $cancelled_message = wp_kses_post(wp_unslash($_POST['cancelled_message'] ?? ''));
+
+        $this->settings->set_paid_confirmation_type($paid_type);
+        $this->settings->set_paid_confirmation_page_id($paid_page_id);
+        $this->settings->set_paid_confirmation_url($paid_url);
+        $this->settings->set_show_entry_data($show_entry_data);
+        $this->settings->set_confirmation_message(SubmissionStore::STATUS_PAID, $paid_message);
+        $this->settings->set_confirmation_message(SubmissionStore::STATUS_PENDING, $pending_message);
+        $this->settings->set_confirmation_message(SubmissionStore::STATUS_FAILED, $failed_message);
+        $this->settings->set_confirmation_message(SubmissionStore::STATUS_CANCELLED, $cancelled_message);
+
+        wp_send_json_success();
     }
 
     public function request_activation(): void

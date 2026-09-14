@@ -1,0 +1,567 @@
+/* Return-status popup (assets/js/frontend.js) and pay-by-link redirect
+   spinner (assets/js/pay-by-link.js) share this overlay/modal shell so both
+   look consistent, even though they're never on screen at the same time. */
+
+.iftp-nf-modal-overlay {
+	position: fixed;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 16px;
+	box-sizing: border-box;
+	background: rgba( 15, 18, 20, 0.6 );
+	z-index: 100000;
+}
+
+@supports ( backdrop-filter: blur( 1px ) ) or ( -webkit-backdrop-filter: blur( 1px ) ) {
+	.iftp-nf-modal-overlay {
+		background: rgba( 15, 18, 20, 0.5 );
+		-webkit-backdrop-filter: blur( 3px );
+		backdrop-filter: blur( 3px );
+	}
+}
+
+.iftp-nf-modal {
+	position: relative;
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 400px;
+	padding: 40px 32px 32px;
+	background: #fff;
+	border: 1px solid rgba( 0, 0, 0, 0.06 );
+	border-radius: 16px;
+	box-shadow: 0 24px 48px -12px rgba( 0, 0, 0, 0.28 ), 0 4px 12px rgba( 0, 0, 0, 0.08 );
+	text-align: center;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	animation: iftp-nf-modal-in 0.25s cubic-bezier( 0.16, 1, 0.3, 1 );
+}
+
+@keyframes iftp-nf-modal-in {
+	from {
+		transform: translateY( 8px ) scale( 0.96 );
+		opacity: 0;
+	}
+	to {
+		transform: translateY( 0 ) scale( 1 );
+		opacity: 1;
+	}
+}
+
+.iftp-nf-modal-close {
+	position: absolute;
+	top: 14px;
+	right: 14px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	border: none;
+	border-radius: 50%;
+	background: transparent;
+	color: #8a8f98;
+	font-size: 20px;
+	line-height: 1;
+	cursor: pointer;
+	transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.iftp-nf-modal-close:hover,
+.iftp-nf-modal-close:focus-visible {
+	background: #f0f1f2;
+	color: #1d2327;
+}
+
+.iftp-nf-modal-close:focus-visible {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+}
+
+.iftp-nf-modal-icon {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 64px;
+	height: 64px;
+	margin: 0 auto 24px;
+	border-radius: 50%;
+	background: #787c82;
+	box-shadow: 0 0 0 8px rgba( 120, 124, 130, 0.12 );
+	color: #fff;
+	font-size: 28px;
+	font-weight: 700;
+}
+
+.iftp-nf-modal--paid .iftp-nf-modal-icon {
+	background: #00a32a;
+	box-shadow: 0 0 0 8px rgba( 0, 163, 42, 0.12 );
+}
+
+.iftp-nf-modal--failed .iftp-nf-modal-icon {
+	background: #d63638;
+	box-shadow: 0 0 0 8px rgba( 214, 54, 56, 0.12 );
+}
+
+/* Cancelled gets its own accent (orange) so it reads distinctly from a hard
+   "failed" (red) at a glance, while still clearly not being a success. */
+.iftp-nf-modal--cancelled .iftp-nf-modal-icon {
+	background: #e17b13;
+	box-shadow: 0 0 0 8px rgba( 225, 123, 19, 0.12 );
+}
+
+.iftp-nf-modal--pending .iftp-nf-modal-icon {
+	background: #dba617;
+	box-shadow: 0 0 0 8px rgba( 219, 166, 23, 0.12 );
+}
+
+.iftp-nf-modal--expired .iftp-nf-modal-icon {
+	background: #787c82;
+	animation: iftp-nf-icon-pop 0.5s ease-out;
+}
+
+@keyframes iftp-nf-icon-pop {
+	0% {
+		transform: scale( 0.4 );
+		opacity: 0;
+	}
+	60% {
+		transform: scale( 1.15 );
+		opacity: 1;
+	}
+	100% {
+		transform: scale( 1 );
+	}
+}
+
+/* Pending: three dots bouncing in a staggered wave (one up while the others
+   settle), the classic "still working on it" loader — built in JS
+   (buildDotsIcon()) as three plain spans so each can carry its own
+   animation-delay. */
+.iftp-nf-dots {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+}
+
+.iftp-nf-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: currentColor;
+	animation: iftp-nf-dot-bounce 1.1s ease-in-out infinite;
+}
+
+.iftp-nf-dot:nth-child( 2 ) {
+	animation-delay: 0.15s;
+}
+
+.iftp-nf-dot:nth-child( 3 ) {
+	animation-delay: 0.3s;
+}
+
+@keyframes iftp-nf-dot-bounce {
+	0%,
+	60%,
+	100% {
+		transform: translateY( 0 );
+		opacity: 0.6;
+	}
+	30% {
+		transform: translateY( -6px );
+		opacity: 1;
+	}
+}
+
+/* Failed/cancelled: an X built from two bars, each starting at zero length
+   (a "dot" at the center) and growing outward along both of its legs at
+   once, overshooting slightly before settling — "opening" then "closing"
+   each bar — built in JS (buildXIcon()). transform-origin stays centered so
+   scaleX grows symmetrically in both directions from the middle. */
+.iftp-nf-x {
+	position: relative;
+	width: 30px;
+	height: 30px;
+	display: inline-block;
+}
+
+.iftp-nf-x-bar {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 30px;
+	height: 3.5px;
+	margin: -1.75px 0 0 -15px;
+	background: currentColor;
+	border-radius: 2px;
+	transform-origin: center;
+}
+
+.iftp-nf-x-bar--1 {
+	animation: iftp-nf-x-bar-1 0.45s ease-out 0.05s both;
+}
+
+.iftp-nf-x-bar--2 {
+	animation: iftp-nf-x-bar-2 0.45s ease-out 0.2s both;
+}
+
+@keyframes iftp-nf-x-bar-1 {
+	from {
+		transform: rotate( 45deg ) scaleX( 0 );
+	}
+	65% {
+		transform: rotate( 45deg ) scaleX( 1.2 );
+	}
+	to {
+		transform: rotate( 45deg ) scaleX( 1 );
+	}
+}
+
+@keyframes iftp-nf-x-bar-2 {
+	from {
+		transform: rotate( -45deg ) scaleX( 0 );
+	}
+	65% {
+		transform: rotate( -45deg ) scaleX( 1.2 );
+	}
+	to {
+		transform: rotate( -45deg ) scaleX( 1 );
+	}
+}
+
+/* Paid: an animated checkmark draw plus a confetti burst — built in JS
+   (buildCheckIcon()/buildConfetti()). The SVG is allowed to overflow its own
+   64px circle (see .iftp-nf-modal-icon's overflow, left at its default
+   "visible") so the confetti pieces can burst out past the icon's edge. */
+.iftp-nf-check-svg {
+	width: 36px;
+	height: 36px;
+	overflow: visible;
+}
+
+.iftp-nf-check-path {
+	fill: none;
+	stroke: #fff;
+	stroke-width: 4;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	/* Path length of `M6 18 L13.5 25.5 L30 9` (see frontend.js's
+	   buildCheckIcon()) is ~33.94 — 34 gives a hair of run-off so the draw
+	   never visibly stalls short of the final vertex. */
+	stroke-dasharray: 34;
+	stroke-dashoffset: 34;
+	animation: iftp-nf-check-draw 0.4s ease-out 0.05s forwards;
+}
+
+@keyframes iftp-nf-check-draw {
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+
+.iftp-nf-confetti {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
+/* Each piece is a zero-size, non-animated wrapper rotated to its own fixed
+   burst angle (--iftp-angle) — purely to establish a direction — around an
+   inner element that does the actual (transform/opacity-only) animating:
+   translating outward along the wrapper's rotated axis while independently
+   tumbling and fading. Two separate elements because a single one can't
+   hold both a fixed rotate (the aim) and an animated one (the tumble)
+   without one overwriting the other. */
+.iftp-nf-confetti-piece {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 0;
+	height: 0;
+	transform: rotate( var( --iftp-angle, 0deg ) );
+}
+
+.iftp-nf-confetti-piece-inner {
+	position: absolute;
+	top: -4.5px;
+	left: -3px;
+	width: 6px;
+	height: 9px;
+	background: var( --iftp-color, #fff );
+	border-radius: 1px;
+	opacity: 0;
+	animation: iftp-nf-confetti-burst 0.75s cubic-bezier( 0.25, 0.8, 0.3, 1 ) forwards;
+}
+
+@keyframes iftp-nf-confetti-burst {
+	0% {
+		transform: translateY( 0 ) scale( 0.3 ) rotate( 0deg );
+		opacity: 1;
+	}
+	60% {
+		opacity: 1;
+	}
+	100% {
+		transform: translateY( -42px ) scale( 1 ) rotate( 260deg );
+		opacity: 0;
+	}
+}
+
+/* Shared by the failed/cancelled icon above and the source form
+   (assets/js/frontend.js's shakeSourceForm()) so both read as the same
+   "this didn't work" gesture. */
+@keyframes iftp-nf-shake {
+	10%,
+	90% {
+		transform: translateX( -1px );
+	}
+	20%,
+	80% {
+		transform: translateX( 2px );
+	}
+	30%,
+	50%,
+	70% {
+		transform: translateX( -4px );
+	}
+	40%,
+	60% {
+		transform: translateX( 4px );
+	}
+}
+
+.iftp-nf-form-shake {
+	animation: iftp-nf-shake 0.5s ease-in-out;
+}
+
+.iftp-nf-modal-message {
+	margin: 0 0 28px;
+	color: #3c434a;
+	font-size: 15px;
+	line-height: 1.6;
+}
+
+/* Paid confirmation "Show Entry Data" box (Admin\ConfirmationPage's
+   checkbox) — inserted between the message and the OK button only once a
+   payment is confirmed paid (assets/js/frontend.js, renderEntryData()).
+   Reveals via `clip-path`, not `max-height`: the box already occupies its
+   full final height in the layout the instant it's inserted (so nothing
+   else in the popup shifts when it appears), and clip-path only ever
+   changes what's visible, never stretches the label/value text inside it —
+   so the box's own top and bottom edges read as genuinely opening outward
+   from its vertical center at the same time, symmetrically, rather than
+   sliding down from the top like a typical accordion. Paired with a slight
+   overshoot `scale()` (same bounce curve as `.iftp-nf-checkbox-pop`/
+   `.iftp-nf-menu-in` elsewhere in this plugin) so the box visibly "pops"
+   past full size before settling, instead of just arriving. */
+.iftp-nf-modal-entry-data {
+	margin: -6px 0 24px;
+	padding: 14px 16px;
+	background: #f6f7f7;
+	border: 1px solid #e2e4e7;
+	border-radius: 10px;
+	text-align: left;
+	clip-path: inset( 50% 0 50% 0 round 10px );
+	opacity: 0;
+	transform: scale( 0.85 );
+	transition: clip-path 1.1s cubic-bezier( 0.34, 1.56, 0.64, 1 ),
+		transform 1.1s cubic-bezier( 0.34, 1.56, 0.64, 1 ),
+		opacity 0.6s ease;
+}
+
+.iftp-nf-modal-entry-data.is-open {
+	clip-path: inset( 0 round 10px );
+	opacity: 1;
+	transform: scale( 1 );
+}
+
+/* Each row cascades in well behind the box's own reveal (staggered via
+   inline `transition-delay`, set per row in `renderEntryData()`) instead of
+   every label/value pair appearing all at once the moment the box opens —
+   a deliberate, unhurried beat between each line of the receipt. */
+.iftp-nf-modal-entry-data dt,
+.iftp-nf-modal-entry-data dd {
+	opacity: 0;
+	transform: translateY( 10px );
+	transition: opacity 0.55s ease, transform 0.55s cubic-bezier( 0.34, 1.56, 0.64, 1 );
+}
+
+.iftp-nf-modal-entry-data.is-open dt,
+.iftp-nf-modal-entry-data.is-open dd {
+	opacity: 1;
+	transform: translateY( 0 );
+}
+
+.iftp-nf-modal-entry-data dt {
+	margin: 0;
+	color: #646970;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+
+.iftp-nf-modal-entry-data dd {
+	margin: 2px 0 10px;
+	color: #1d2327;
+	font-size: 13px;
+	word-break: break-word;
+}
+
+.iftp-nf-modal-entry-data dt:last-of-type,
+.iftp-nf-modal-entry-data dd:last-of-type {
+	margin-bottom: 0;
+}
+
+.iftp-nf-modal-ok {
+	display: inline-block;
+	min-width: 140px;
+	padding: 11px 28px;
+	border: none;
+	border-radius: 8px;
+	background: #2271b1;
+	color: #fff;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background-color 0.15s ease, transform 0.08s ease;
+}
+
+.iftp-nf-modal-ok:hover {
+	background: #135e96;
+}
+
+.iftp-nf-modal-ok:active {
+	transform: translateY( 1px );
+}
+
+.iftp-nf-modal-ok:focus-visible {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+}
+
+.iftp-nf-modal--paid .iftp-nf-modal-ok {
+	background: #00a32a;
+}
+
+.iftp-nf-modal--paid .iftp-nf-modal-ok:hover {
+	background: #007017;
+}
+
+.iftp-nf-modal--paid .iftp-nf-modal-ok:focus-visible {
+	outline-color: #00a32a;
+}
+
+.iftp-nf-modal--failed .iftp-nf-modal-ok {
+	background: #d63638;
+}
+
+.iftp-nf-modal--failed .iftp-nf-modal-ok:hover {
+	background: #a72b2b;
+}
+
+.iftp-nf-modal--failed .iftp-nf-modal-ok:focus-visible {
+	outline-color: #d63638;
+}
+
+/* Matches its own icon's orange (see .iftp-nf-modal--cancelled .iftp-nf-modal-icon)
+   rather than sharing "failed"'s red — cancelled is its own distinct accent
+   throughout the popup, not a variant of a hard failure. */
+.iftp-nf-modal--cancelled .iftp-nf-modal-ok {
+	background: #e17b13;
+}
+
+.iftp-nf-modal--cancelled .iftp-nf-modal-ok:hover {
+	background: #b35f0f;
+}
+
+.iftp-nf-modal--cancelled .iftp-nf-modal-ok:focus-visible {
+	outline-color: #e17b13;
+}
+
+/* Pay-by-link redirect spinner */
+
+.iftp-nf-modal--spinner {
+	padding: 40px 32px;
+}
+
+.iftp-nf-spinner {
+	width: 48px;
+	height: 48px;
+	margin: 0 auto 20px;
+	border: 4px solid #f0f0f1;
+	border-top-color: #2271b1;
+	border-radius: 50%;
+	animation: iftp-nf-spin 0.8s linear infinite;
+}
+
+@keyframes iftp-nf-spin {
+	to {
+		transform: rotate( 360deg );
+	}
+}
+
+@media ( prefers-reduced-motion: reduce ) {
+	.iftp-nf-spinner {
+		animation-duration: 1.6s;
+	}
+
+	/* Purely decorative motion (the X's overshoot, the confetti burst, the
+	   expired icon's pop-in, the modal entrance, the form shake) is dropped
+	   entirely rather than just slowed down, since it carries no information
+	   a viewer who's asked for reduced motion would lose by not seeing it
+	   move. The checkmark draw and the dot bounce are kept — slowed down,
+	   same as the spinner — since both are still communicating genuine
+	   state (a confirmation actually resolving, a wait still in progress),
+	   not just decoration. */
+	.iftp-nf-modal,
+	.iftp-nf-x-bar--1,
+	.iftp-nf-x-bar--2,
+	.iftp-nf-confetti-piece-inner,
+	.iftp-nf-modal--expired .iftp-nf-modal-icon,
+	.iftp-nf-form-shake {
+		animation: none;
+	}
+
+	/* The entry-data box's "opening" reveal (and its per-row cascade) is
+	   purely decorative too — with reduced motion it's just shown at its
+	   final, fully open state immediately, same as every other
+	   purely-decorative motion above. */
+	.iftp-nf-modal-entry-data {
+		transition: opacity 0.2s ease;
+		clip-path: inset( 0 round 10px );
+		transform: none;
+	}
+
+	.iftp-nf-modal-entry-data dt,
+	.iftp-nf-modal-entry-data dd {
+		transition: none;
+		transform: none;
+		opacity: 1;
+	}
+
+	.iftp-nf-x-bar--1 {
+		transform: rotate( 45deg ) scaleX( 1 );
+	}
+
+	.iftp-nf-x-bar--2 {
+		transform: rotate( -45deg ) scaleX( 1 );
+	}
+
+	.iftp-nf-confetti-piece-inner {
+		opacity: 0;
+	}
+
+	.iftp-nf-check-path {
+		animation-duration: 0.8s;
+	}
+
+	.iftp-nf-dot {
+		animation-duration: 2.2s;
+	}
+}

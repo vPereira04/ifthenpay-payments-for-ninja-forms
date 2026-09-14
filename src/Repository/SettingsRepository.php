@@ -25,6 +25,19 @@ class SettingsRepository
     private const OPTION_DESCRIPTION     = 'iftp_nf_description';
     private const OPTION_EXPIRY_DAYS     = 'iftp_nf_expiry_days';
 
+    private const OPTION_CONFIRMATION_PAID_TYPE         = 'iftp_nf_confirmation_paid_type';
+    private const OPTION_CONFIRMATION_PAID_PAGE_ID      = 'iftp_nf_confirmation_paid_page_id';
+    private const OPTION_CONFIRMATION_PAID_URL          = 'iftp_nf_confirmation_paid_url';
+    private const OPTION_CONFIRMATION_SHOW_ENTRY_DATA   = 'iftp_nf_confirmation_show_entry_data';
+    private const OPTION_CONFIRMATION_PAID_MESSAGE      = 'iftp_nf_confirmation_paid_message';
+    private const OPTION_CONFIRMATION_PENDING_MESSAGE   = 'iftp_nf_confirmation_pending_message';
+    private const OPTION_CONFIRMATION_FAILED_MESSAGE    = 'iftp_nf_confirmation_failed_message';
+    private const OPTION_CONFIRMATION_CANCELLED_MESSAGE = 'iftp_nf_confirmation_cancelled_message';
+
+    public const CONFIRMATION_TYPE_POPUP = 'popup';
+    public const CONFIRMATION_TYPE_PAGE  = 'page';
+    public const CONFIRMATION_TYPE_URL   = 'url';
+
     public function get_backoffice_key(): string
     {
         return (string) get_option(self::OPTION_BACKOFFICE_KEY, '');
@@ -177,5 +190,125 @@ class SettingsRepository
         delete_option(self::OPTION_DEFAULT_METHOD);
         delete_option(self::OPTION_DESCRIPTION);
         delete_option(self::OPTION_EXPIRY_DAYS);
+        delete_option(self::OPTION_CONFIRMATION_PAID_TYPE);
+        delete_option(self::OPTION_CONFIRMATION_PAID_PAGE_ID);
+        delete_option(self::OPTION_CONFIRMATION_PAID_URL);
+        delete_option(self::OPTION_CONFIRMATION_SHOW_ENTRY_DATA);
+        delete_option(self::OPTION_CONFIRMATION_PAID_MESSAGE);
+        delete_option(self::OPTION_CONFIRMATION_PENDING_MESSAGE);
+        delete_option(self::OPTION_CONFIRMATION_FAILED_MESSAGE);
+        delete_option(self::OPTION_CONFIRMATION_CANCELLED_MESSAGE);
+    }
+
+    public function get_paid_confirmation_type(): string
+    {
+        $type = (string) get_option(self::OPTION_CONFIRMATION_PAID_TYPE, self::CONFIRMATION_TYPE_POPUP);
+
+        $allowed = [self::CONFIRMATION_TYPE_POPUP, self::CONFIRMATION_TYPE_PAGE, self::CONFIRMATION_TYPE_URL];
+
+        return in_array($type, $allowed, true) ? $type : self::CONFIRMATION_TYPE_POPUP;
+    }
+
+    public function set_paid_confirmation_type(string $type): void
+    {
+        update_option(self::OPTION_CONFIRMATION_PAID_TYPE, $type);
+    }
+
+    public function get_paid_confirmation_page_id(): int
+    {
+        return (int) get_option(self::OPTION_CONFIRMATION_PAID_PAGE_ID, 0);
+    }
+
+    public function set_paid_confirmation_page_id(int $page_id): void
+    {
+        update_option(self::OPTION_CONFIRMATION_PAID_PAGE_ID, $page_id);
+    }
+
+    public function get_paid_confirmation_url(): string
+    {
+        return (string) get_option(self::OPTION_CONFIRMATION_PAID_URL, '');
+    }
+
+    public function set_paid_confirmation_url(string $url): void
+    {
+        update_option(self::OPTION_CONFIRMATION_PAID_URL, $url);
+    }
+
+    /**
+     * Whether the paid confirmation popup should also reveal the customer's
+     * submitted entry data (see `Admin\ConfirmationPage`'s "Show Entry Data"
+     * checkbox). Only meaningful for the "popup" confirmation type — a
+     * "page"/"url" redirect never shows any popup at all, entry data
+     * included.
+     */
+    public function get_show_entry_data(): bool
+    {
+        return (bool) get_option(self::OPTION_CONFIRMATION_SHOW_ENTRY_DATA, false);
+    }
+
+    public function set_show_entry_data(bool $show): void
+    {
+        update_option(self::OPTION_CONFIRMATION_SHOW_ENTRY_DATA, $show);
+    }
+
+    /**
+     * The resolved redirect target for a "paid" confirmation configured as a
+     * WordPress page or a custom URL — empty when configured as (or falling
+     * back to, e.g. an unset/deleted page) a popup, meaning the "paid" return
+     * should show the popup instead of redirecting anywhere.
+     */
+    public function get_paid_redirect_url(): string
+    {
+        switch ($this->get_paid_confirmation_type()) {
+            case self::CONFIRMATION_TYPE_PAGE:
+                $page_id = $this->get_paid_confirmation_page_id();
+
+                return $page_id > 0 ? (string) get_permalink($page_id) : '';
+            case self::CONFIRMATION_TYPE_URL:
+                return $this->get_paid_confirmation_url();
+            default:
+                return '';
+        }
+    }
+
+    /**
+     * The admin-configured popup message for one of the four confirmation
+     * statuses this plugin lets an admin customize (see `Admin\ConfirmationPage`).
+     * Empty when not yet set — callers fall back to their own default text
+     * (`Plugin::default_status_message()`), since "expired" and any other
+     * status has no configurable message at all.
+     */
+    public function get_confirmation_message(string $status): string
+    {
+        $option = self::confirmation_message_option($status);
+
+        return null !== $option ? (string) get_option($option, '') : '';
+    }
+
+    public function set_confirmation_message(string $status, string $message): void
+    {
+        $option = self::confirmation_message_option($status);
+
+        if (null === $option) {
+            return;
+        }
+
+        update_option($option, $message);
+    }
+
+    private static function confirmation_message_option(string $status): ?string
+    {
+        switch ($status) {
+            case 'paid':
+                return self::OPTION_CONFIRMATION_PAID_MESSAGE;
+            case 'pending':
+                return self::OPTION_CONFIRMATION_PENDING_MESSAGE;
+            case 'failed':
+                return self::OPTION_CONFIRMATION_FAILED_MESSAGE;
+            case 'cancelled':
+                return self::OPTION_CONFIRMATION_CANCELLED_MESSAGE;
+            default:
+                return null;
+        }
     }
 }

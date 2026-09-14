@@ -152,6 +152,9 @@
 
 	function bindSettingsForm() {
 		var form = document.getElementById( 'iftp-nf-settings-form' );
+		var saveButton = document.getElementById( 'iftp-nf-save-settings' );
+		var saveStatus = form ? form.querySelector( '.iftp-nf-save-status' ) : null;
+		var saveStatusTimer = null;
 
 		if ( ! form ) {
 			return;
@@ -169,14 +172,39 @@
 
 			var defaultMethod = form.querySelector( '.iftp-nf-default-method:checked' );
 
+			if ( saveStatusTimer ) {
+				window.clearTimeout( saveStatusTimer );
+			}
+
+			if ( saveStatus ) {
+				saveStatus.classList.remove( 'is-visible' );
+			}
+
+			if ( saveButton ) {
+				saveButton.disabled = true;
+				saveButton.classList.add( 'is-saving' );
+			}
+
 			post( 'iftp_nf_save_settings', {
 				enabled_methods: enabled,
 				default_method: defaultMethod ? defaultMethod.value : '',
 				description: form.querySelector( '#iftp-nf-description' ).value,
 				expiry_days: form.querySelector( '#iftp-nf-expiry-days' ).value,
 			} ).then( function ( res ) {
+				if ( saveButton ) {
+					saveButton.disabled = false;
+					saveButton.classList.remove( 'is-saving' );
+				}
+
 				if ( res.success ) {
 					refreshMethodsTable( res.data.table_html );
+
+					if ( saveStatus ) {
+						saveStatus.classList.add( 'is-visible' );
+						saveStatusTimer = window.setTimeout( function () {
+							saveStatus.classList.remove( 'is-visible' );
+						}, 2000 );
+					}
 				} else {
 					window.alert( res.data && res.data.message ? res.data.message : iftpNfAdmin.i18n.error );
 				}

@@ -18,6 +18,14 @@ delete_option('iftp_nf_methods');
 delete_option('iftp_nf_default_method');
 delete_option('iftp_nf_description');
 delete_option('iftp_nf_expiry_days');
+delete_option('iftp_nf_confirmation_paid_type');
+delete_option('iftp_nf_confirmation_paid_page_id');
+delete_option('iftp_nf_confirmation_paid_url');
+delete_option('iftp_nf_confirmation_show_entry_data');
+delete_option('iftp_nf_confirmation_paid_message');
+delete_option('iftp_nf_confirmation_pending_message');
+delete_option('iftp_nf_confirmation_failed_message');
+delete_option('iftp_nf_confirmation_cancelled_message');
 
 $payment_options = $wpdb->get_col(
     $wpdb->prepare(

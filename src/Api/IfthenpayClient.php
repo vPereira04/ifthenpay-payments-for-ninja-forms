@@ -120,6 +120,33 @@ class IfthenpayClient
     }
 
     /**
+     * GET /gateway/transaction/status/get?transactionId={id}
+     *
+     * Looks up a single transaction by the id ifthenpay appended to a
+     * success-return URL — lets `Api\Webhook\WebhookController::confirm_via_transaction_status()`
+     * resolve a payment immediately instead of waiting on the asynchronous
+     * webhook. Returns whatever fields ifthenpay includes (`OrderId`,
+     * `Amount`, `PaymentMethod` among them) or an empty array if the request
+     * failed or the id isn't recognised.
+     *
+     * @return array<string, mixed>
+     */
+    public function get_transaction_status(string $transaction_id): array
+    {
+        $response = wp_remote_get(
+            add_query_arg(
+                ['transactionId' => $transaction_id],
+                self::API_BASE . '/gateway/transaction/status/get'
+            ),
+            ['timeout' => 15]
+        );
+
+        $body = $this->decode_response($response);
+
+        return is_array($body) ? $body : [];
+    }
+
+    /**
      * POST /endpoint/callback/activation/?cms=ninjaforms
      *
      * Registers (or re-registers) the webhook URL for this gateway key.
