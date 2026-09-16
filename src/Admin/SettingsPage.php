@@ -14,20 +14,14 @@ if (! defined('ABSPATH')) {
 /**
  * The global ifthenpay settings screen.
  *
- * Ninja Forms' own Settings screen (`admin.php?page=nf-settings`) has no
- * "Payments" tab by default — only `settings` and `licenses`
- * (`includes/Admin/Menus/Settings.php::display()`). Payment add-ons are
- * expected to add their own tab via the `ninja_forms_settings_tabs` filter,
- * then render into it: for any tab other than `settings`, the settings
- * template calls `do_meta_boxes('nf_settings_' . $active_tab, 'advanced', null)`
- * with no enclosing `<form>` — so this registers a meta box on the
- * `nf_settings_payments` screen and owns its own AJAX-based saving
- * (`Ajax\Controller`) rather than Ninja Forms' core settings POST handler.
+ * Ninja Forms has no "Payments" tab by default, so I add my own via the
+ * `ninja_forms_settings_tabs` filter. Non-`settings` tabs render as a meta
+ * box with no enclosing `<form>`, so I save over AJAX instead of relying on
+ * Ninja Forms' core settings POST handler.
  *
- * Carries the six fields of the "Default Settings Page Contract" (see
- * `.claude/agents/wp-reverse-engineer.md`): Backoffice Key, Gateway Key,
- * methods table, default method, description, expiry days — all on one
- * screen, saved together.
+ * All settings — Backoffice Key, Gateway Key, methods table, default
+ * method, description, expiry days — live on this one screen and save
+ * together.
  */
 class SettingsPage
 {
@@ -91,8 +85,11 @@ class SettingsPage
             return;
         }
 
-        wp_enqueue_style('iftp-nf-admin', IFTP_NF_URL . 'assets/css/admin.css', [], IFTP_NF_VERSION);
-        wp_enqueue_script('iftp-nf-admin', IFTP_NF_URL . 'assets/js/admin.js', [], IFTP_NF_VERSION, true);
+        $admin_css = 'assets/css/admin.css';
+        $admin_js  = 'assets/js/admin.js';
+
+        wp_enqueue_style('iftp-nf-admin', IFTP_NF_URL . $admin_css, [], (string) filemtime(IFTP_NF_PATH . $admin_css));
+        wp_enqueue_script('iftp-nf-admin', IFTP_NF_URL . $admin_js, [], (string) filemtime(IFTP_NF_PATH . $admin_js), true);
 
         wp_localize_script('iftp-nf-admin', 'iftpNfAdmin', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
@@ -107,8 +104,8 @@ class SettingsPage
     }
 
     /**
-     * Renders as a meta box callback: no <div class="wrap">/<h1>, the
-     * postbox/title chrome is already provided by do_meta_boxes().
+     * I render as a meta box callback, so no wrap/h1 — do_meta_boxes()
+     * already gives us the postbox chrome.
      */
     public function render(): void
     {

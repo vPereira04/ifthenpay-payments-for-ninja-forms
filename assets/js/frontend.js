@@ -6,22 +6,16 @@
 	}
 
 	document.addEventListener( 'DOMContentLoaded', function () {
-		// Stripped immediately, not on popup dismiss: the address bar is
-		// "live" as `wp_get_referer()` for as long as it carries this stuff,
-		// so a resubmit before the user ever closes the popup would still
-		// hand `IfthenpayGateway::resolve_return_base_url()` a polluted URL.
+		// Stripping this right away, not on popup dismiss — the address bar
+		// stays "live" for wp_get_referer() as long as it carries these params,
+		// so a resubmit before the popup even closes would still see a polluted URL.
 		stripReturnParamsFromUrl();
 
-		// A "Paid" confirmation configured as a page/URL redirect (see
-		// `Admin\ConfirmationPage`) should never have to flash the ordinary
-		// "we're waiting for your payment" popup first just to immediately
-		// replace it with a real navigation a moment later — the webhook
-		// essentially never beats the browser back here (that's the rare
-		// case `Plugin::maybe_redirect_paid_confirmation()` already handles
-		// server-side, before this script is even enqueued), so in practice
-		// this quick check is the only thing standing between "still
-		// pending" and "paid" for a great many returns. Held behind a brief,
-		// wordless spinner instead — see `deferInitialPopupForQuickCheck()`.
+		// A "Paid" redirect confirmation shouldn't have to flash the "waiting
+		// for payment" popup first just to redirect a moment later. The webhook
+		// essentially never beats the browser back here, so this quick check is
+		// what tells "still pending" apart from "paid" for most returns — held
+		// behind a brief spinner instead of the real popup.
 		if ( shouldDeferInitialPopup() ) {
 			deferInitialPopupForQuickCheck();
 			return;
@@ -36,18 +30,11 @@
 		return 'paid' !== iftpNfReturn.status && !! iftpNfReturn.transactionId && !! iftpNfReturn.paidRedirectUrl;
 	}
 
-	/**
-	 * Runs the same one-shot transaction-status check `maybeWatchForPaidStatus()`
-	 * would otherwise run first, but behind a brief spinner overlay (reusing
-	 * `pay-by-link.js`'s own shell) instead of the real popup — then either
-	 * redirects (resolved "paid" with a redirect configured), reveals the
-	 * real popup already showing the correct final state (resolved to
-	 * anything else, including "paid" with no redirect — e.g. the setting
-	 * changed between page load and this check), or reveals the real popup
-	 * still showing "pending" and falls through to the normal watch loop
-	 * (not yet resolved — nothing lost, this is exactly where
-	 * `maybeWatchForPaidStatus()` would have started polling anyway).
-	 */
+	// Runs the same one-shot status check as the normal watch flow, but behind
+	// a spinner instead of the real popup. Redirects if it resolves to paid
+	// with a redirect configured, otherwise reveals the popup already showing
+	// the right state — or, if still pending, falls through to the normal
+	// watch loop with nothing lost.
 	function deferInitialPopupForQuickCheck() {
 		var overlay = showConfirmingOverlay();
 
@@ -105,14 +92,9 @@
 		document.body.style.overflow = '';
 	}
 
-	/**
-	 * Builds and shows the return-status popup: a centered dialog over a
-	 * dimmed backdrop, dismissible via the close (X) button, the "OK"
-	 * button, a backdrop click, or Escape. Returns a small handle
-	 * (`updateIftpNfModalContent()`'s `refs`) that later live-status updates
-	 * use to update this same popup in place instead of tearing it down and
-	 * rebuilding it.
-	 */
+	// Builds and shows the return-status popup, dismissible via the close
+	// button, OK, a backdrop click, or Escape. Returns a small ref handle that
+	// later status updates use to update this same popup in place.
 	function openIftpNfStatusModal( status, message, entryData ) {
 		var overlay = document.createElement( 'div' );
 		overlay.className = 'iftp-nf-modal-overlay';
@@ -152,11 +134,9 @@
 
 		var previousBodyOverflow = document.body.style.overflow;
 
-		// Kept in the DOM (hidden via inline `display`, not removed) for as
-		// long as this page is open — a payment can still resolve to "paid"
-		// after the customer dismisses a "pending" popup (see
-		// `maybeWatchForPaidStatus()`/`pollPaymentStatus()`), and that must
-		// still be shown rather than silently missed.
+		// Kept in the DOM (hidden, not removed) — a payment can still resolve
+		// to "paid" after the customer dismisses a "pending" popup, and that
+		// still needs to show rather than being silently missed.
 		function open() {
 			overlay.style.display = '';
 			document.body.style.overflow = 'hidden';
@@ -184,14 +164,10 @@
 		okBtn.addEventListener( 'click', close );
 		document.addEventListener( 'keydown', onKeydown );
 
-		// `resolved` is flipped by `applyResolvedStatus()` once the payment is
-		// confirmed "paid" — checked by both the scheduled poll loop and the
-		// `visibilitychange` re-check below so neither does any more work
-		// past that point. `status` (the last status actually rendered) is
-		// how `updateIftpNfModalContent()` tells a genuine transition apart
-		// from a redundant poll tick reporting the same status again — only
-		// the former reopens a dismissed popup, rebuilds the icon, or shakes
-		// the source form.
+		// `resolved` flips once the payment's confirmed paid, so the poll loop
+		// and the visibility re-check both know to stop. `status` is the last
+		// status actually rendered, so a genuine transition can be told apart
+		// from a redundant poll tick reporting the same thing again.
 		var refs = {
 			modal: modal,
 			icon: icon,
@@ -209,23 +185,12 @@
 		return refs;
 	}
 
-	/**
-	 * Swaps the popup's icon, status class and message in place — used both
-	 * for the very first render and for every later live-status update (see
-	 * `maybeWatchForPaidStatus()`/`pollPaymentStatus()`), so a payment that
-	 * resolves while the customer is still looking at "pending" updates with
-	 * no perceptible delay instead of requiring a page reload.
-	 *
-	 * Only a genuine status change (tracked via `refs.status`) rebuilds the
-	 * icon, reopens the popup, or shakes the source form — a redundant poll
-	 * tick reporting the same unchanged status is otherwise a no-op:
-	 * - the pending dots' bounce and the paid checkmark/confetti are
-	 *   one-shot or looping animations that must keep running undisturbed
-	 *   across repeated ticks, not restart every 3-10 seconds;
-	 * - re-opening on every tick would undo the customer's own OK/close
-	 *   dismissal every few seconds for as long as polling keeps running,
-	 *   even though nothing new actually happened.
-	 */
+	// Swaps the popup's icon/class/message in place, for both the first
+	// render and every later status update, so a resolved payment updates
+	// with no reload. I only rebuild the icon, reopen the popup, or shake the
+	// form on a genuine status change — a redundant poll tick reporting the
+	// same status is a no-op, since re-opening would undo a dismissal and the
+	// icon animations need to keep running undisturbed.
 	function updateIftpNfModalContent( refs, status, message, entryData ) {
 		var statusChanged = refs.status !== status;
 
@@ -235,11 +200,8 @@
 			renderIftpNfIcon( refs.icon, status );
 		}
 
-		// `innerHTML`, not `textContent`: an admin can format a status
-		// message with simple markup (bold/italic) via its "Normal" view on
-		// the "Confirmation Type" settings tab (`assets/js/confirmation.js`),
-		// and `Ajax\Controller::save_confirmation_settings()` already
-		// sanitizes it with `wp_kses_post()` before it's ever stored.
+		// innerHTML, not textContent — admins can format this message with
+		// bold/italic, and it's already sanitized with wp_kses_post() before storage.
 		refs.text.innerHTML = message;
 
 		if ( statusChanged ) {
@@ -257,23 +219,12 @@
 		refs.status = status;
 	}
 
-	/**
-	 * Builds (once per genuine transition into "paid") the "Show Entry Data"
-	 * box (`Admin\ConfirmationPage`'s checkbox) between the message and the
-	 * OK button, then reveals it. Removes any previous box first — relevant
-	 * only if a popup somehow re-enters a non-"paid" status after already
-	 * showing one, which never actually happens today ("paid" is terminal)
-	 * but keeps this safe to call on every status change regardless.
-	 *
-	 * The box is inserted already at its full final height (see
-	 * `frontend.css`) so nothing else in the popup shifts when it appears;
-	 * only its own `clip-path` animates, opening symmetrically from its
-	 * vertical center outward toward both edges at once — matching the
-	 * "opening" look already used for the failed/cancelled X icon
-	 * (`buildXIcon()`), just for a box of readable text instead of a plain
-	 * bar, where a `transform: scale()` would otherwise visibly stretch the
-	 * label/value text while it animated.
-	 */
+	// Builds the "Show Entry Data" box on a genuine transition into paid.
+	// I remove any previous box first — defensive, since "paid" is terminal
+	// and this never actually re-runs today, but it's cheap to keep safe.
+	// The box is inserted at its full height so nothing else shifts; only its
+	// clip-path animates open, since a transform: scale() would visibly
+	// stretch the text while animating.
 	function renderEntryData( refs, status, entryData ) {
 		if ( refs.entryDataEl ) {
 			refs.entryDataEl.parentNode.removeChild( refs.entryDataEl );
@@ -294,12 +245,9 @@
 			var dd = document.createElement( 'dd' );
 			dd.textContent = row.value;
 
-			// Each row's own fade/slide-in (see frontend.css) is delayed a
-			// little further behind the box's own reveal than the row
-			// before it, so the whole thing cascades open one line at a
-			// time instead of every row arriving in one flat instant.
-			// Capped past the sixth row so a long entry doesn't stretch the
-			// reveal out for several seconds.
+			// Each row's fade-in is delayed a bit further than the one before
+			// it, so they cascade open instead of arriving all at once —
+			// capped past the sixth row so a long entry doesn't drag it out.
 			var delay = 450 + Math.min( index, 6 ) * 140;
 			dt.style.transitionDelay = delay + 'ms';
 			dd.style.transitionDelay = ( delay + 70 ) + 'ms';
@@ -311,20 +259,10 @@
 		refs.modal.insertBefore( box, refs.okBtn );
 		refs.entryDataEl = box;
 
-		// A single forced reflow (`void box.offsetHeight`) is the usual fix
-		// for "adding a class right after inserting an element skips its
-		// transition", but it only guarantees the *style* for the closed
-		// state was computed before `is-open` is added — not that the
-		// browser ever actually *painted* it, which is what a transition
-		// needs to have something to animate from. This popup builds the
-		// whole modal (including this box) in one synchronous burst, so
-		// there's a real risk of that closed state never reaching the
-		// screen at all and the box simply appearing already open. Two
-		// nested `requestAnimationFrame()` calls wait for an actual paint
-		// in between instead: the first fires only after the browser has
-		// rendered this frame (the box closed), and the second — scheduled
-		// from inside the first — fires on the very next one, guaranteeing
-		// `is-open` lands in a frame after the closed state was visible.
+		// A single forced reflow isn't enough here — this modal is built in
+		// one synchronous burst, so the browser might never actually paint the
+		// closed state before is-open lands. Two nested rAF calls wait for a
+		// real paint in between instead.
 		requestAnimationFrame( function () {
 			requestAnimationFrame( function () {
 				box.classList.add( 'is-open' );
@@ -332,15 +270,9 @@
 		} );
 	}
 
-	/**
-	 * Builds the icon's contents for `status` — a dedicated small animation
-	 * per outcome (see frontend.css) rather than a single static glyph:
-	 * bouncing dots for "pending", an X drawn open from its center for
-	 * "failed"/"cancelled", and a drawn checkmark with a confetti burst for
-	 * "paid". Anything else ("expired", or an unrecognised value) falls back
-	 * to the plain glyph `iftpNfIconFor()` already provided — no specific
-	 * animation was asked for those.
-	 */
+	// Builds the icon per status — bouncing dots for pending, an X for
+	// failed/cancelled, a checkmark with confetti for paid. Anything else
+	// falls back to the plain glyph.
 	function renderIftpNfIcon( iconEl, status ) {
 		iconEl.innerHTML = '';
 
@@ -390,8 +322,8 @@
 		return wrap;
 	}
 
-	// No white — pieces travel well past the green circle onto the modal's
-	// own white background, where a white piece would simply vanish.
+	// No white — pieces travel onto the modal's own white background, where
+	// a white piece would just vanish.
 	var CONFETTI_COLORS = [ '#ffcd3c', '#4d9de0', '#e75a7c', '#7bd389', '#9b5de5', '#ff8c42' ];
 	var CONFETTI_ANGLES = [ 0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330 ];
 
@@ -406,10 +338,8 @@
 		svg.setAttribute( 'aria-hidden', 'true' );
 
 		var path = document.createElementNS( svgNS, 'path' );
-		// A 1.5x scale of the Feather "check" polyline (4,12 / 9,17 / 20,6),
-		// mathematically centered on both axes of the 36-unit viewBox at that
-		// scale — bigger and better balanced than the original hand-picked
-		// points, which read as small and slightly off-center.
+		// A 1.5x scale of the Feather "check" polyline, centered on the
+		// viewBox — bigger and better balanced than the original hand-picked points.
 		path.setAttribute( 'd', 'M6 18 L13.5 25.5 L30 9' );
 		path.setAttribute( 'class', 'iftp-nf-check-path' );
 
@@ -420,15 +350,9 @@
 		return wrap;
 	}
 
-	/**
-	 * A fixed 12-piece burst radiating out from the checkmark — see
-	 * frontend.css's `.iftp-nf-confetti-piece`/`-inner` for why each piece
-	 * is two nested elements (a fixed "aim" rotate plus an independently
-	 * animated tumble/translate). Left in the DOM after the animation ends
-	 * rather than cleaned up — a one-time dozen small `<span>`s for the
-	 * lifetime of this popup is negligible, and this only ever runs once
-	 * per payment (paid stops all further polling).
-	 */
+	// A fixed 12-piece burst radiating from the checkmark. Left in the DOM
+	// after the animation — a dozen small spans is negligible, and this only
+	// ever runs once per payment.
 	function buildConfetti() {
 		var holder = document.createElement( 'span' );
 		holder.className = 'iftp-nf-confetti';
@@ -450,17 +374,9 @@
 		return holder;
 	}
 
-	/**
-	 * Shakes the actual Ninja Forms form the payment came from — found by
-	 * `iftpNfReturn.formId` (`Gateway\IfthenpayGateway::process()`'s own
-	 * `$form_id`, via `SubmissionStore`), matching Ninja Forms core's own
-	 * wrapper markup (`includes/Templates/display-form-container.html.php`:
-	 * `#nf-form-{id}-cont`) rather than searching by class alone, in case
-	 * more than one form is on this page. Falls back to the first
-	 * `.nf-form-cont` on the page if that specific id isn't found (e.g. the
-	 * form was since removed from the page) — better than shaking nothing at
-	 * all. A no-op if neither exists.
-	 */
+	// Shakes the Ninja Forms form the payment came from, matched by its
+	// wrapper id in case more than one form is on the page. Falls back to
+	// the first .nf-form-cont if that id isn't found, and no-ops if neither exists.
 	function shakeSourceForm() {
 		var container = ( iftpNfReturn.formId
 			? document.getElementById( 'nf-form-' + iftpNfReturn.formId + '-cont' )
@@ -470,9 +386,9 @@
 			return;
 		}
 
-		// Removed first (and reflow forced) so a second failed/cancelled
-		// attempt on the same page re-triggers the animation instead of the
-		// class already being present being a no-op.
+		// Removing the class first (and forcing a reflow) so a second
+		// failed/cancelled attempt on the same page re-triggers the shake
+		// instead of being a no-op.
 		container.classList.remove( 'iftp-nf-form-shake' );
 		void container.offsetWidth;
 		container.classList.add( 'iftp-nf-form-shake' );
@@ -483,24 +399,11 @@
 		} );
 	}
 
-	/**
-	 * Kicks off this page's live watch for a payment that was still
-	 * unresolved when it first rendered — never runs at all once the popup
-	 * already shows "paid", and does nothing without a `ref` to poll with
-	 * (only ever missing if `Plugin::maybe_enqueue_return_banner()` itself
-	 * found no stored record, which already short-circuits before this
-	 * script is even enqueued).
-	 *
-	 * `iftpNfReturn.transactionId` is only ever present on a genuine success
-	 * return (see `Gateway\IfthenpayGateway::build_return_url()`'s
-	 * `[TRANSACTIONID]` placeholder) — when it is, this checks it once,
-	 * immediately, via ifthenpay's own transaction-status API
-	 * (`Api\Webhook\WebhookController::confirm_via_transaction_status()`)
-	 * rather than only ever waiting on the asynchronous webhook. Whether or
-	 * not that quick check resolves anything, `pollPaymentStatus()` below is
-	 * always the fallback that actually guarantees this popup eventually
-	 * catches up.
-	 */
+	// Kicks off the live watch for a payment still unresolved on load. If we
+	// have a transaction id, I check it once immediately via ifthenpay's own
+	// transaction-status API rather than only waiting on the webhook — either
+	// way, the poll loop below is the fallback that guarantees this popup
+	// eventually catches up.
 	function maybeWatchForPaidStatus( modalRefs, initialStatus ) {
 		if ( 'paid' === initialStatus || ! iftpNfReturn.ref ) {
 			return;
@@ -519,33 +422,19 @@
 		watchForPaidStatus( modalRefs );
 	}
 
-	/**
-	 * The one-shot check via ifthenpay's own transaction-status API — shared
-	 * by `maybeWatchForPaidStatus()` (already showing the real popup) and
-	 * `deferInitialPopupForQuickCheck()` (still holding a spinner, no real
-	 * popup built yet) so this exact request is only ever made once per
-	 * page load either way.
-	 */
+	// The one-shot transaction-status check, shared by the normal watch and
+	// the deferred-popup path, so it's only ever requested once per page load.
 	function runQuickPaidCheck( callback ) {
 		verifyPayment( 'success', iftpNfReturn.transactionId, callback );
 	}
 
-	/**
-	 * Starts the ongoing watch for a payment still unresolved after the
-	 * quick check above (or one that never had a transaction id to check in
-	 * the first place): the backgrounded-tab re-check plus the scheduled
-	 * poll loop (`pollPaymentStatus()`).
-	 */
+	// Starts the ongoing watch: a re-check when the tab comes back into
+	// focus, plus the scheduled poll loop.
 	function watchForPaidStatus( modalRefs ) {
-		// Browsers throttle or fully suspend `setTimeout` in a hidden/
-		// backgrounded tab (e.g. the customer switches to their banking app
-		// to actually pay a Multibanco reference, or switches tabs to check
-		// email) — the scheduled poll loop below can silently stall for
-		// exactly as long as the tab stays hidden. Re-checking immediately
-		// the moment the tab is foregrounded again closes that gap instead
-		// of waiting for whatever's left of the current interval (or,
-		// worse, for a timer the browser never resumes at all until some
-		// later interaction).
+		// Browsers throttle/suspend timers in a hidden tab (e.g. the customer
+		// switches to their banking app to pay), so the poll loop below can
+		// silently stall while it's backgrounded. Re-checking the moment the
+		// tab's foregrounded again closes that gap.
 		document.addEventListener( 'visibilitychange', function () {
 			if ( modalRefs.resolved || document.hidden ) {
 				return;
@@ -558,27 +447,17 @@
 		pollPaymentStatus( modalRefs, 0 );
 	}
 
-	/**
-	 * Background poll for a payment still unresolved after the quick
-	 * transaction-id check (or one that never had a transaction id to check
-	 * in the first place). Same cadence as `ifthenpay-payments-for-wpforms`'s
-	 * own polling: fast for a short window right after the popup appears —
-	 * catches most remaining cases (the webhook landing moments later, or a
-	 * transiently failed transaction-status check succeeding on this next
-	 * try) with no perceptible delay — then a steadier cadence for the long
-	 * tail, since by then there's no reliable signal left to say this
-	 * specific payment is any more likely to resolve soon than a
-	 * Multibanco/Payshop reference that can stay genuinely pending for days.
-	 */
+	// Background poll for a payment still unresolved — fast for a short
+	// window right after the popup appears, then a steadier cadence for the
+	// long tail, since a Multibanco/Payshop reference can stay pending for
+	// days with no better signal.
 	function pollPaymentStatus( modalRefs, attempt ) {
 		var fastAttempts = 10;
 		var fastIntervalMs = 3000;
 		var slowIntervalMs = 10000;
-		// ~24 minutes total (30s fast + 143 * 10s slow) — generous on purpose:
-		// a Multibanco/Payshop reference can take a while even for a customer
-		// who keeps the tab open, and a backgrounded tab's throttled timers
-		// (see the `visibilitychange` listener in `maybeWatchForPaidStatus()`)
-		// can themselves eat into this budget before ever firing.
+		// ~24 minutes total, generous on purpose — a Multibanco/Payshop
+		// reference can take a while, and a backgrounded tab's throttled
+		// timers can eat into this budget before ever firing.
 		var maxAttempts = 153;
 
 		if ( modalRefs.resolved || attempt >= maxAttempts ) {
@@ -601,26 +480,18 @@
 	}
 
 	/**
-	 * Updates the popup with whatever `verifyPayment()` reported and tells
-	 * the caller whether to keep watching. An empty `status` means the
-	 * request itself failed (network error or a malformed response) rather
-	 * than the payment resolving to anything — left exactly as shown, the
-	 * caller's own polling schedule retries regardless.
+	 * Updates the popup with whatever verifyPayment() reported and tells the
+	 * caller whether to keep watching. An empty status means the request
+	 * itself failed, so the caller's own polling schedule just retries.
+	 *
+	 * A "paid" resolution with a redirect URL navigates away instead of
+	 * showing the checkmark popup — this only fires for a payment resolving
+	 * to paid after the page already rendered pending, since the
+	 * redirect-at-load case is handled server-side already.
 	 *
 	 * @return {boolean} true once resolved "paid" — the only status this
-	 *                    popup ever stops watching for, matching
-	 *                    `SubmissionStore::update_status()`: every other
-	 *                    status can still turn into "paid" later.
-	 *
-	 * A "paid" resolution carrying a non-empty `redirectUrl` (the "Paid"
-	 * confirmation type is a WordPress page or a custom URL, not the
-	 * default popup — see `Admin\ConfirmationPage`) navigates the browser
-	 * there instead of ever rendering the checkmark popup. A "paid at load"
-	 * request never reaches here at all in that case — it's already been
-	 * redirected server-side by `Plugin::maybe_redirect_paid_confirmation()`
-	 * — so this only ever fires for a payment that resolves to "paid"
-	 * *after* this page has already rendered with a still-pending popup
-	 * showing.
+	 *                    popup stops watching for; every other status can
+	 *                    still turn into "paid" later.
 	 */
 	function applyResolvedStatus( modalRefs, status, message, redirectUrl, entryData ) {
 		if ( '' === status || modalRefs.resolved ) {
@@ -642,14 +513,8 @@
 		return modalRefs.resolved;
 	}
 
-	/**
-	 * Calls `Ajax\FrontendController::verify_payment()`. `returnAction`
-	 * "success" (with `transactionId`) is only ever used once, by
-	 * `maybeWatchForPaidStatus()`/`deferInitialPopupForQuickCheck()`; every
-	 * poll tick after that uses "poll" with no transaction id, matching the
-	 * same two-action vocabulary `ifthenpay-payments-for-wpforms`'s own
-	 * `ajax_verify_payment()` uses.
-	 */
+	// The "success" action (with a transaction id) only ever runs once; every
+	// poll tick after that uses "poll" with no transaction id.
 	function verifyPayment( returnAction, transactionId, callback ) {
 		if ( ! iftpNfReturn.ajaxUrl || ! iftpNfReturn.nonce ) {
 			callback( '', '', '', [] );
@@ -676,9 +541,8 @@
 					entryData = response.data.entryData || [];
 				}
 			} catch ( e ) {
-				// Malformed/non-JSON response — treated the same as a
-				// network error below; the caller's own schedule retries
-				// regardless.
+				// Malformed/non-JSON response — I treat this like a network
+				// error; the caller's schedule retries regardless.
 			}
 
 			callback( status, message, redirectUrl, entryData );
@@ -693,15 +557,11 @@
 			'nonce=' + encodeURIComponent( iftpNfReturn.nonce ),
 			'ref=' + encodeURIComponent( iftpNfReturn.ref ),
 			'return_action=' + encodeURIComponent( returnAction ),
-			// The page's original `iftp_nf_pay` value (see
-			// `Plugin::maybe_enqueue_return_banner()`) — unrelated to
-			// `returnAction` above — kept alongside every poll tick so
-			// `Ajax\FrontendController::verify_payment()` can keep applying
-			// the same "still pending, but the browser already told us
-			// error/cancel" fallback this popup's very first render used
-			// (`Plugin::resolve_display_status()`), instead of the popup
-			// flipping back to "pending" the moment a tick reads the raw
-			// stored status before the webhook has caught up.
+			// query_status is the page's original iftp_nf_pay value, unrelated
+			// to returnAction — I send it with every poll tick so the server
+			// keeps applying the same "still pending" fallback the popup's
+			// first render used, instead of flipping back to pending before
+			// the webhook catches up.
 			'query_status=' + encodeURIComponent( iftpNfReturn.queryStatus || '' ),
 		];
 
@@ -712,21 +572,15 @@
 		xhr.send( params.join( '&' ) );
 	}
 
-	// `iftp_nf_pay`/`ref`/`transaction_id` are ours (`Gateway\IfthenpayGateway::build_return_url()`).
-	// The rest are ifthenpay's own hosted card-payment page decorating the
-	// return redirect with transaction-verification data (an anti-phishing
-	// key and a masked card number among them) — never read by this plugin,
-	// so there's nothing to lose by dropping them too, and every reason to:
-	// left in place, they'd sit in browser history indefinitely and get
-	// carried into the next Pay-by-Link attempt's return URL as a stale
-	// referer (see `resolve_return_base_url()`).
+	// iftp_nf_pay/ref/transaction_id are ours; the rest are ifthenpay's own
+	// card-payment page decorating the return redirect (an anti-phishing key,
+	// masked card number, etc.) that we never read — so I strip them all
+	// rather than let them sit in browser history and leak into the next
+	// Pay-by-Link return URL as a stale referer.
 	var RETURN_PARAMS = [ 'iftp_nf_pay', 'ref', 'transaction_id', 'id', 'amount', 'requestId', 'sk', 'brand', 'pan' ];
 
-	/**
-	 * Drops every return/verification param above from the address bar as
-	 * soon as the page loads, so refreshing afterwards doesn't re-show the
-	 * same result and nothing sensitive lingers in the URL bar or history.
-	 */
+	// Drops the params above from the address bar on load, so a refresh
+	// doesn't re-show the same result and nothing sensitive lingers in the URL.
 	function stripReturnParamsFromUrl() {
 		if ( ! window.history || ! window.history.replaceState ) {
 			return;

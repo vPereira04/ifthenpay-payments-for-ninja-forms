@@ -16,9 +16,9 @@ if (! defined('ABSPATH')) {
 }
 
 /**
- * Admin-only AJAX endpoints backing the settings screen: connect/disconnect
- * the Backoffice Key, switch/refresh the Gateway Key's methods table, save
- * settings, and request activation of a not-yet-provisioned method.
+ * I built this as the router for the settings screen's admin AJAX calls —
+ * connecting/disconnecting the Backoffice Key, switching or refreshing the
+ * Gateway Key table, saving settings, and requesting activation.
  */
 class Controller
 {
@@ -76,8 +76,7 @@ class Controller
     }
 
     /**
-     * Switches which of this Backoffice Key's Gateway Key rows is active,
-     * re-fetching that row's provisioned methods.
+     * I switch the active Gateway Key row and re-fetch its provisioned methods.
      */
     public function select_gateway_key(): void
     {
@@ -141,13 +140,9 @@ class Controller
     }
 
     /**
-     * Saves the "Confirmation Type" tab (`Admin\ConfirmationPage`): the
-     * "Paid" popup/page/URL choice plus all four statuses' popup messages.
-     * Messages are sanitized with `wp_kses_post()`, not
-     * `sanitize_textarea_field()` — the admin screen's message field allows
-     * simple formatting (bold/italic) via its "Normal" contenteditable view
-     * (`assets/js/confirmation.js`), and `assets/js/frontend.js` renders the
-     * saved value as HTML, not plain text.
+     * I sanitize the messages with wp_kses_post() rather than
+     * sanitize_textarea_field() — the editor lets admins add basic
+     * formatting, and we render the saved value as HTML on the frontend.
      */
     public function save_confirmation_settings(): void
     {

@@ -10,8 +10,7 @@ if (! defined('ABSPATH')) {
 
 /**
  * The asynchronous server-to-server callback ifthenpay sends when a payment
- * resolves. Same contract already implemented by every sibling ifthenpay
- * plugin in this workspace (WPForms, GravityForms, MemberPress, GiveWP):
+ * resolves:
  *
  *   Success: GET ?ref={ref}&apk={base64(gateway_key)}&val={amount}&mtd={method}&req={request_id}
  *   Failure: GET ?status={cancelled|error}&ref={ref}

@@ -12,11 +12,9 @@ if (! defined('ABSPATH')) {
 }
 
 /**
- * Daily sweep marking still-pending payments as expired once they're older
- * than the configured Expiry Days. An expired Multibanco/Payshop reference
- * can still be paid later — expiry is a UI/reporting label, not a lock;
- * SubmissionStore::mark_expired() only ever moves a record away from
- * "pending", and a later webhook can still mark it paid.
+ * Daily sweep that flags payments as expired once they're past the
+ * configured Expiry Days. I treat "expired" as just a display label — an
+ * old Multibanco/Payshop reference can still get paid later.
  */
 class ExpiredPaymentsCron
 {

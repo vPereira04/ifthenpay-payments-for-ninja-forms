@@ -12,24 +12,51 @@ if (! defined('ABSPATH')) {
 }
 
 /**
- * A dedicated "ifthenpay Entries" screen listing every payment attempt —
- * pending, paid, failed, cancelled, expired — straight from `SubmissionStore`.
+ * The "ifthenpay Entries" screen — lists every payment attempt (pending,
+ * paid, failed, cancelled, expired), not just the ones that got paid, so
+ * it's the place to check status at a glance.
  *
- * The primary place to check payment status at a glance: it shows every
- * attempt, not just the ones that ended up paid. Its "ID" column is the
- * submission's WP post ID (`sub_id`) — reserved up front for every attempt
- * (see `Gateway\IfthenpayGateway::reserve_submission()`) and the same value
- * `Gateway\IfthenpayGateway::generate_reference()` builds the payment
- * reference from, at Victor's request. Ninja Forms' own per-form
- * "Submission ID" (`seq_num`) and the form ID are shown alongside the
- * reference in each row's details instead (`render_details()`).
+ * The "ID" column shows the submission's WP post ID, reserved up front for
+ * every attempt before Ninja Forms creates the real row.
  */
 class EntriesPage
 {
     private const PAGE_SLUG        = 'ifthenpay-nf-entries';
     private const DEFAULT_PER_PAGE = 20;
     private const PER_PAGE_OPTIONS = [10, 20, 30];
+    private const PER_PAGE_MAX     = 250;
     private const NONCE_ACTION     = 'iftp_nf_entries_delete';
+
+    /**
+     * Not a real ifthenpay gateway method — an extra option only the
+     * "+ New Payment" popup's Method select offers, for a payment actually
+     * taken in cash, at Victor's request. Handled like any other method
+     * once picked (`render_method_cell()`, `ajax_create_entry()`), just
+     * never written into `SettingsRepository`'s real connected-methods
+     * list, since it isn't one.
+     */
+    private const MANUAL_CASH_METHOD = 'cash';
+
+    /**
+     * The label shown for `MANUAL_CASH_METHOD`, and what actually gets
+     * stored/searched (see `AD_HOC_LABEL_PREFIX`) — a fixed literal rather
+     * than run through `__()` for that reason: a translation could drift
+     * out of sync with what's already saved in old rows, breaking both the
+     * icon match in `render_method_cell()` and search for "dinheiro".
+     */
+    private const MANUAL_CASH_LABEL = 'Dinheiro';
+
+    /**
+     * A payment recorded through the "+ New Payment" popup never went
+     * through a real checkout, so its Method column is stamped "Ad Hoc -
+     * {method}" (e.g. "Ad Hoc - MBWAY", "Ad Hoc - Dinheiro") rather than
+     * just the bare method — literally stored that way, not just displayed
+     * that way, at Victor's request: searching "ad hoc", "dinheiro", or
+     * "mbway" all need to find it via the existing `pay_method LIKE %s`
+     * search clause (`SubmissionStore::build_where()`), which only matches
+     * substrings actually in the stored value.
+     */
+    private const AD_HOC_LABEL_PREFIX = 'Ad Hoc - ';
 
     private SubmissionStore $submissions;
     private SettingsRepository $settings;
@@ -46,18 +73,16 @@ class EntriesPage
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
         add_action('wp_ajax_iftp_nf_delete_entries', [$this, 'ajax_delete_entries']);
         add_action('wp_ajax_iftp_nf_update_status', [$this, 'ajax_update_status']);
+        add_action('wp_ajax_iftp_nf_create_entry', [$this, 'ajax_create_entry']);
         add_filter('admin_footer_text', [$this, 'inject_ninja_toggle']);
         add_action('admin_head', [$this, 'print_menu_color_style']);
     }
 
     /**
-     * Colors this screen's own sidebar submenu link — under "Ninja Forms" —
-     * green, to make it stand out from the rest of Ninja Forms' own (plain)
-     * submenu items. `#adminmenu` renders on every wp-admin screen, not just
-     * this one, so this has to run unconditionally on `admin_head` rather
-     * than being folded into `enqueue_assets()` (which only fires here).
-     * `!important` guards against WP core's own admin-menu selectors, which
-     * are otherwise easily specific enough to win.
+     * I color this screen's submenu link green so it stands out. This runs
+     * on every admin_head rather than enqueue_assets(), since #adminmenu
+     * renders on every wp-admin screen — !important beats WP core's own
+     * selectors here.
      */
     public function print_menu_color_style(): void
     {
@@ -109,7 +134,6 @@ class EntriesPage
                 ['value' => 'paid', 'label' => __('Mark as paid', 'ifthenpay-payments-for-ninja-forms'), 'dot' => '#007017'],
                 ['value' => 'pending', 'label' => __('Mark as pending', 'ifthenpay-payments-for-ninja-forms'), 'dot' => '#8a6100'],
                 ['value' => 'failed', 'label' => __('Mark as failed', 'ifthenpay-payments-for-ninja-forms'), 'dot' => '#a72b2b'],
-                ['value' => 'cancelled', 'label' => __('Mark as cancelled', 'ifthenpay-payments-for-ninja-forms'), 'dot' => '#a72b2b'],
                 ['value' => 'expired', 'label' => __('Mark as expired', 'ifthenpay-payments-for-ninja-forms'), 'dot' => '#50575e'],
                 ['value' => 'delete', 'label' => __('Delete', 'ifthenpay-payments-for-ninja-forms'), 'danger' => true],
             ],
@@ -140,21 +164,18 @@ class EntriesPage
                 'columnsLockedPosition' => __('%s always stays in place', 'ifthenpay-payments-for-ninja-forms'),
                 /* translators: %s: column label, e.g. "Amount" */
                 'columnsLockedVisibility' => __('%s is always shown', 'ifthenpay-payments-for-ninja-forms'),
+                'newEntryCreating'     => __('Creating…', 'ifthenpay-payments-for-ninja-forms'),
+                'newEntryToastSuccess' => __('Payment recorded.', 'ifthenpay-payments-for-ninja-forms'),
+                'newEntryError'        => __('Could not record the payment. Please try again.', 'ifthenpay-payments-for-ninja-forms'),
             ],
         ]);
     }
 
     /**
-     * Easter egg: slips an almost-invisible dot button into the WP admin
-     * footer text, right before "Thank you for creating with WordPress." —
-     * sitting exactly where the peeking ninja (see `render_peeking_ninja()`)
-     * rests, between the admin sidebar and that footer line. Clicking it
-     * reveals the ninja, who otherwise stays hidden by default (see the
-     * `nf-shy-ninja-hidden` class in `render_peeking_ninja()`) — a fresh
-     * page load always resets him back to hidden; nothing is persisted.
-     *
-     * Deliberately unlabelled beyond an aria-label for screen readers —
-     * finding it is the point.
+     * Easter egg: a near-invisible button in the footer that reveals the
+     * peeking ninja. Hidden by default and resets on every page load —
+     * nothing persisted. Unlabelled beyond an aria-label; finding it is
+     * the point.
      */
     public function inject_ninja_toggle(string $footer_text): string
     {
@@ -173,16 +194,10 @@ class EntriesPage
     }
 
     /**
-     * AJAX: deletes the payment-tracking records for the given `refs` —
-     * see `SubmissionStore::delete()` for what this does and doesn't touch —
-     * then re-queries the exact same filtered/searched/sorted/paginated view
-     * the browser currently has open (posted alongside `refs`, see
-     * `iftpNfEntries.currentFilters`) and hands back a freshly rendered
-     * tbody and pagination for it. Deleting entries off a page shouldn't
-     * just leave it short — the next page's rows (or, if the current page
-     * no longer exists, the new last page's — `SubmissionStore::query_index()`
-     * clamps `paged` for us) need to shift up to refill it, exactly like a
-     * plain page reload would show.
+     * AJAX: deletes the given refs, then re-queries the browser's current
+     * filtered/sorted/paginated view and returns a fresh tbody + pagination
+     * — so the next page's rows shift up to refill the gap, same as a
+     * reload would show.
      */
     public function ajax_delete_entries(): void
     {
@@ -242,8 +257,24 @@ class EntriesPage
 
         $counts = $this->submissions->status_counts($shared_filters);
 
+        // I pass the browser's actual filter state explicitly — $_GET here
+        // is admin-ajax.php's own empty query string, not the page's, so
+        // without this the next pagination click would silently reset
+        // per_page.
+        $base = [
+            's'         => $search,
+            'status'    => $view_status,
+            'form_id'   => $form_filter > 0 ? (string) $form_filter : '',
+            'date_from' => $date_from,
+            'date_to'   => $date_to,
+            'orderby'   => $orderby,
+            'order'     => $order,
+            'per_page'  => $per_page,
+            'paged'     => $result['paged'],
+        ];
+
         ob_start();
-        $this->render_pagination($result['paged'], $result['pages']);
+        $this->render_pagination($result['paged'], $result['pages'], $base);
         $pagination_html = (string) ob_get_clean();
 
         wp_send_json_success([
@@ -252,19 +283,152 @@ class EntriesPage
             'paginationHtml' => $pagination_html,
             'paged'          => $result['paged'],
             'counts'         => $counts,
-            'totalLabel'     => sprintf(
-                /* translators: %d: number of entries */
-                _n('%d entry', '%d entries', $result['total'], 'ifthenpay-payments-for-ninja-forms'),
-                $result['total']
-            ),
+            'totalLabel'     => $this->entries_range_label($result['paged'], $per_page, $result['total']),
         ]);
     }
 
     /**
-     * AJAX: bulk-corrects the status of the given `refs` from the Entries
-     * screen — an explicit admin override, unlike the webhook/lifecycle path
-     * (`SubmissionStore::mark_paid()` etc.), so it's allowed to move a record
-     * off "paid" too. See `SubmissionStore::admin_set_status()`.
+     * AJAX: the "+ New Payment" popup's submit (see `render_create_entry_modal()`)
+     * — validates, records it via `SubmissionStore::create_manual()`, then
+     * refreshes the current filtered/sorted/paginated view the same way
+     * `ajax_delete_entries()` does, so the new entry shows up immediately if
+     * it matches what's currently on screen. The view's own filter state
+     * arrives under `view_*` keys here (unlike the other AJAX handlers),
+     * since a plain `form_id` key would be ambiguous with the view's own
+     * "All forms" filter — every entry created here is filed under
+     * `SubmissionStore::AD_HOC_FORM_ID`, never a form the admin picks.
+     */
+    public function ajax_create_entry(): void
+    {
+        check_ajax_referer(self::NONCE_ACTION, 'nonce');
+
+        if (! current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('You are not allowed to do this.', 'ifthenpay-payments-for-ninja-forms')], 403);
+        }
+
+        $amount = (float) ($_POST['amount'] ?? 0);
+
+        if ($amount <= 0) {
+            wp_send_json_error(['message' => __('Enter an amount greater than zero.', 'ifthenpay-payments-for-ninja-forms')], 400);
+        }
+
+        $customer_email = sanitize_text_field(wp_unslash($_POST['customer_email'] ?? ''));
+
+        if ('' !== $customer_email && ! is_email($customer_email)) {
+            wp_send_json_error(['message' => __('Enter a valid email, or leave it blank.', 'ifthenpay-payments-for-ninja-forms')], 400);
+        }
+
+        $status = sanitize_text_field(wp_unslash($_POST['status'] ?? ''));
+
+        $allowed_statuses = [
+            SubmissionStore::STATUS_PENDING,
+            SubmissionStore::STATUS_PAID,
+            SubmissionStore::STATUS_FAILED,
+            SubmissionStore::STATUS_EXPIRED,
+        ];
+
+        if (! in_array($status, $allowed_statuses, true)) {
+            wp_send_json_error(['message' => __('Unknown status.', 'ifthenpay-payments-for-ninja-forms')], 400);
+        }
+
+        $pay_method = sanitize_text_field(wp_unslash($_POST['pay_method'] ?? ''));
+
+        if ('' !== $pay_method && self::MANUAL_CASH_METHOD !== $pay_method && ! array_key_exists($pay_method, $this->method_catalog())) {
+            $pay_method = '';
+        }
+
+        // Stamped "Ad Hoc - {method}" — see `AD_HOC_LABEL_PREFIX` — so it's
+        // stored (not just displayed) that way, at Victor's request.
+        if ('' !== $pay_method) {
+            $method_label = self::MANUAL_CASH_METHOD === $pay_method ? self::MANUAL_CASH_LABEL : $pay_method;
+            $pay_method   = self::AD_HOC_LABEL_PREFIX . $method_label;
+        }
+
+        $customer_name = sanitize_text_field(wp_unslash($_POST['customer_name'] ?? ''));
+
+        $ref = $this->submissions->create_manual($customer_name, $customer_email, $amount, $pay_method, $status);
+
+        if (null === $ref) {
+            global $wpdb;
+
+            // A real DB failure (bad column, connection hiccup, …) — this is
+            // the case that used to report success while the entry quietly
+            // never made it into the searchable index at all.
+            wp_send_json_error(['message' => sprintf(
+                /* translators: %s: the database error */
+                __('Could not save the payment: %s', 'ifthenpay-payments-for-ninja-forms'),
+                $wpdb->last_error ?: __('unknown database error', 'ifthenpay-payments-for-ninja-forms')
+            )], 500);
+        }
+
+        $search      = sanitize_text_field(wp_unslash($_POST['view_s'] ?? ''));
+        $view_status = sanitize_text_field(wp_unslash($_POST['view_status'] ?? ''));
+        $form_filter = (int) ($_POST['view_form_id'] ?? 0);
+        $date_from   = $this->sanitize_date($_POST['view_date_from'] ?? '');
+        $date_to     = $this->sanitize_date($_POST['view_date_to'] ?? '');
+        $orderby     = $this->sanitize_orderby($_POST['view_orderby'] ?? '');
+        $order       = '' !== $orderby ? $this->sanitize_order($_POST['view_order'] ?? '') : '';
+        $per_page    = $this->sanitize_per_page($_POST['view_per_page'] ?? '');
+        $paged       = max(1, (int) ($_POST['view_paged'] ?? 1));
+
+        $search_form_ids = [];
+
+        if ('' !== $search) {
+            foreach ($this->available_forms() as $id => $label) {
+                if (false !== stripos($label, $search)) {
+                    $search_form_ids[] = $id;
+                }
+            }
+        }
+
+        $shared_filters = [
+            'form_id'         => $form_filter,
+            'date_from'       => '' !== $date_from ? strtotime($date_from . ' 00:00:00') : 0,
+            'date_to'         => '' !== $date_to ? strtotime($date_to . ' 23:59:59') : 0,
+            'search'          => $search,
+            'search_form_ids' => $search_form_ids,
+        ];
+
+        $result = $this->submissions->query_index($shared_filters + [
+            'status'   => $view_status,
+            'orderby'  => $orderby,
+            'order'    => $order,
+            'per_page' => $per_page,
+            'paged'    => $paged,
+        ]);
+
+        $counts = $this->submissions->status_counts($shared_filters);
+
+        $base = [
+            's'         => $search,
+            'status'    => $view_status,
+            'form_id'   => $form_filter > 0 ? (string) $form_filter : '',
+            'date_from' => $date_from,
+            'date_to'   => $date_to,
+            'orderby'   => $orderby,
+            'order'     => $order,
+            'per_page'  => $per_page,
+            'paged'     => $result['paged'],
+        ];
+
+        ob_start();
+        $this->render_pagination($result['paged'], $result['pages'], $base);
+        $pagination_html = (string) ob_get_clean();
+
+        wp_send_json_success([
+            'ref'            => $ref,
+            'rowsHtml'       => $this->render_rows_html($result['items']),
+            'paginationHtml' => $pagination_html,
+            'paged'          => $result['paged'],
+            'counts'         => $counts,
+            'totalLabel'     => $this->entries_range_label($result['paged'], $per_page, $result['total']),
+        ]);
+    }
+
+    /**
+     * AJAX: bulk-corrects the status of the given refs. This is an
+     * explicit admin override, so unlike the webhook path it's allowed to
+     * move a record off "paid" too.
      */
     public function ajax_update_status(): void
     {
@@ -293,16 +457,16 @@ class EntriesPage
             }
         }
 
-        // Recomputed against the exact same filtered/searched view the
-        // browser currently has open (posted alongside `refs`/`status`, see
-        // `iftpNfEntries.currentFilters`), so the status-tab counts and
-        // footer total the browser patches in afterwards stay accurate
-        // without a full page reload.
+        // I recompute counts against the browser's current filtered view
+        // so the status tabs and footer total stay accurate without a
+        // full reload.
         $search      = sanitize_text_field(wp_unslash($_POST['s'] ?? ''));
         $view_status = sanitize_text_field(wp_unslash($_POST['view_status'] ?? ''));
         $form_filter = (int) ($_POST['form_id'] ?? 0);
         $date_from   = $this->sanitize_date($_POST['date_from'] ?? '');
         $date_to     = $this->sanitize_date($_POST['date_to'] ?? '');
+        $per_page    = $this->sanitize_per_page($_POST['per_page'] ?? '');
+        $paged       = max(1, (int) ($_POST['paged'] ?? 1));
 
         $search_form_ids = [];
 
@@ -333,11 +497,7 @@ class EntriesPage
             'updated'     => $updated,
             'status'      => $status,
             'counts'      => $counts,
-            'totalLabel'  => sprintf(
-                /* translators: %d: number of entries */
-                _n('%d entry', '%d entries', $total_result['total'], 'ifthenpay-payments-for-ninja-forms'),
-                $total_result['total']
-            ),
+            'totalLabel'  => $this->entries_range_label($paged, $per_page, $total_result['total']),
             'matchesView' => '' === $view_status || $view_status === $status,
         ]);
     }
@@ -348,10 +508,9 @@ class EntriesPage
             return;
         }
 
-        // Builds/rebuilds the index table from `wp_options` the first time
-        // only (guarded by a version flag) — see `SubmissionStore::maybe_build_index()`.
-        // Everything below runs against that index instead of loading every
-        // record into PHP on every single page/filter click.
+        // I build the index table once (version-flag guarded) so
+        // everything below queries that instead of loading every record
+        // into PHP each time.
         SubmissionStore::maybe_build_index();
 
         $filters       = $this->current_filters();
@@ -366,10 +525,9 @@ class EntriesPage
 
         $available_forms = $this->available_forms();
 
-        // Form titles aren't stored in the index, so a search has to be
-        // resolved against them here first, then folded into the SQL query
-        // as a `form_id IN (...)` clause alongside the ref/method/status/amount
-        // matching `query_index()` already does directly in SQL.
+        // Form titles aren't stored in the index, so I resolve the search
+        // against them here first, then fold the matching form IDs into
+        // the query.
         $search_form_ids = [];
 
         if ('' !== $search) {
@@ -471,8 +629,10 @@ class EntriesPage
                             />
                         </div>
 
+                        <?php $is_custom_per_page = ! in_array($per_page, self::PER_PAGE_OPTIONS, true); ?>
+
                         <label class="screen-reader-text" for="iftp-nf-per-page"><?php esc_html_e('Entries per page', 'ifthenpay-payments-for-ninja-forms'); ?></label>
-                        <select id="iftp-nf-per-page" name="per_page" data-iftp-enhance-select>
+                        <select id="iftp-nf-per-page" name="per_page" data-iftp-enhance-select <?php echo $is_custom_per_page ? 'disabled' : ''; ?>>
                             <?php foreach (self::PER_PAGE_OPTIONS as $option) : ?>
                                 <option value="<?php echo esc_attr((string) $option); ?>" <?php selected($per_page, $option); ?>>
                                     <?php
@@ -484,11 +644,46 @@ class EntriesPage
                                     ?>
                                 </option>
                             <?php endforeach; ?>
+                            <option value="custom" <?php selected($is_custom_per_page); ?>>
+                                <?php esc_html_e('Custom…', 'ifthenpay-payments-for-ninja-forms'); ?>
+                            </option>
                         </select>
+
+                        <?php
+                        /* translators: %d: maximum number of entries per page allowed */
+                        $custom_per_page_label = sprintf(__('Custom per page (max %d)', 'ifthenpay-payments-for-ninja-forms'), self::PER_PAGE_MAX);
+                        ?>
+                        <label class="screen-reader-text" for="iftp-nf-per-page-custom"><?php echo esc_html($custom_per_page_label); ?></label>
+                        <input
+                            type="number"
+                            id="iftp-nf-per-page-custom"
+                            name="per_page"
+                            class="iftp-nf-per-page-custom"
+                            min="1"
+                            max="<?php echo esc_attr((string) self::PER_PAGE_MAX); ?>"
+                            placeholder="<?php esc_attr_e('Custom', 'ifthenpay-payments-for-ninja-forms'); ?>"
+                            title="<?php echo esc_attr($custom_per_page_label); ?>"
+                            value="<?php echo esc_attr($is_custom_per_page ? (string) $per_page : ''); ?>"
+                            data-iftp-per-page-custom
+                            <?php echo $is_custom_per_page ? '' : 'hidden disabled'; ?>
+                        />
 
                         <button type="submit" class="iftp-nf-entries-filters-buttons button button-primary"><?php esc_html_e('Filter', 'ifthenpay-payments-for-ninja-forms'); ?></button>
                         <a href="<?php echo esc_url($this->filtered_url([], true)); ?>" class="iftp-nf-reset-filters"><?php esc_html_e('Reset filters', 'ifthenpay-payments-for-ninja-forms'); ?></a>
                     </form>
+
+                    <button
+                        type="button"
+                        class="iftp-nf-new-entry-trigger"
+                        data-iftp-new-entry-trigger
+                        aria-haspopup="dialog"
+                        title="<?php esc_attr_e('New payment', 'ifthenpay-payments-for-ninja-forms'); ?>"
+                    >
+                        <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                            <path d="M8 1.5v13M1.5 8h13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+                        </svg>
+                        <span class="screen-reader-text"><?php esc_html_e('New payment', 'ifthenpay-payments-for-ninja-forms'); ?></span>
+                    </button>
 
                     <div class="iftp-nf-columns-control" data-iftp-columns>
                         <button
@@ -521,9 +716,9 @@ class EntriesPage
                                 </th>
                                 <th class="iftp-nf-col-narrow" data-col="id"><?php echo $this->sort_link('id', __('ID', 'ifthenpay-payments-for-ninja-forms'), $orderby, $order); ?></th>
                                 <th data-col="customer"><?php esc_html_e('Customer', 'ifthenpay-payments-for-ninja-forms'); ?></th>
-                                <th data-col="request_id"><?php esc_html_e('Request ID', 'ifthenpay-payments-for-ninja-forms'); ?></th>
                                 <th data-col="form"><?php esc_html_e('Form', 'ifthenpay-payments-for-ninja-forms'); ?></th>
                                 <th data-col="method"><?php esc_html_e('Method', 'ifthenpay-payments-for-ninja-forms'); ?></th>
+                                <th class="iftp-nf-col-narrow" data-col="submission_id"><?php esc_html_e('Submission ID', 'ifthenpay-payments-for-ninja-forms'); ?></th>
                                 <th class="iftp-nf-col-amount" data-col="amount"><?php echo $this->sort_link('amount', __('Amount', 'ifthenpay-payments-for-ninja-forms'), $orderby, $order); ?></th>
                                 <th data-col="status"><?php echo $this->sort_link('status', __('Status', 'ifthenpay-payments-for-ninja-forms'), $orderby, $order); ?></th>
                                 <th data-col="payment_link"><?php esc_html_e('Payment Link', 'ifthenpay-payments-for-ninja-forms'); ?></th>
@@ -562,15 +757,7 @@ class EntriesPage
 
                 <div class="iftp-nf-entries-card-footer">
                     <span class="iftp-nf-entries-count" data-iftp-total-count>
-                        <?php
-                        echo esc_html(
-                            sprintf(
-                                /* translators: %d: number of entries */
-                                _n('%d entry', '%d entries', $total, 'ifthenpay-payments-for-ninja-forms'),
-                                $total
-                            )
-                        );
-                        ?>
+                        <?php echo esc_html($this->entries_range_label($paged, $per_page, $total)); ?>
                     </span>
 
                     <div data-iftp-pagination><?php $this->render_pagination($paged, $pages); ?></div>
@@ -578,18 +765,99 @@ class EntriesPage
             </div>
 
             <?php $this->render_confirm_modal(); ?>
+            <?php $this->render_create_entry_modal(); ?>
             <?php $this->render_toast(); ?>
+            <?php $this->render_scroll_to_top_button($per_page); ?>
         </div>
         <?php
     }
 
     /**
-     * A single reusable confirm dialog for the bulk-actions bar (delete,
-     * change status) — replaces the browser's native `window.confirm()`,
-     * which otherwise breaks the flow of an in-place, no-reload bulk action
-     * with a jarring OS-level popup. Its title/message/confirm-button label
-     * are filled in by JS per action (`entries.js`, `openConfirmModal()`)
-     * right before it opens; only one of these exists on the page.
+     * The "+ New Payment" popup — for recording a payment taken outside the
+     * normal checkout (over the phone, in person), same idea as Contact
+     * Form 7's own "+" popups, at Victor's request. A static form (unlike
+     * `render_confirm_modal()`, which is filled in by JS per bulk action)
+     * submitted via AJAX to `ajax_create_entry()`, which does the real
+     * validation — this only needs to get the right fields/options in
+     * front of the admin.
+     */
+    private function render_create_entry_modal(): void
+    {
+        $statuses = [
+            SubmissionStore::STATUS_PENDING => __('Pending', 'ifthenpay-payments-for-ninja-forms'),
+            SubmissionStore::STATUS_PAID    => __('Paid', 'ifthenpay-payments-for-ninja-forms'),
+            SubmissionStore::STATUS_FAILED  => __('Failed', 'ifthenpay-payments-for-ninja-forms'),
+            SubmissionStore::STATUS_EXPIRED => __('Expired', 'ifthenpay-payments-for-ninja-forms'),
+        ];
+        ?>
+        <div class="iftp-nf-modal" data-iftp-new-entry-modal hidden>
+            <div class="iftp-nf-modal-overlay" data-iftp-new-entry-overlay></div>
+            <div class="iftp-nf-modal-box iftp-nf-modal-box--form" role="dialog" aria-modal="true" aria-labelledby="iftp-nf-new-entry-title">
+                <h2 id="iftp-nf-new-entry-title"><?php esc_html_e('New payment', 'ifthenpay-payments-for-ninja-forms'); ?></h2>
+                <p><?php esc_html_e('Record a payment taken outside the normal checkout — it appears in the list under "Ad Hoc Payments", like any other entry.', 'ifthenpay-payments-for-ninja-forms'); ?></p>
+
+                <form data-iftp-new-entry-form>
+                    <p class="iftp-nf-form-error" data-iftp-new-entry-error hidden></p>
+
+                    <div class="iftp-nf-form-row">
+                        <div class="iftp-nf-form-field">
+                            <label for="iftp-nf-ne-name"><?php esc_html_e('Customer name', 'ifthenpay-payments-for-ninja-forms'); ?></label>
+                            <input type="text" id="iftp-nf-ne-name" name="customer_name" />
+                        </div>
+                        <div class="iftp-nf-form-field">
+                            <label for="iftp-nf-ne-email"><?php esc_html_e('Customer email', 'ifthenpay-payments-for-ninja-forms'); ?></label>
+                            <input type="email" id="iftp-nf-ne-email" name="customer_email" />
+                        </div>
+                    </div>
+
+                    <div class="iftp-nf-form-row">
+                        <div class="iftp-nf-form-field">
+                            <label for="iftp-nf-ne-amount"><?php esc_html_e('Amount', 'ifthenpay-payments-for-ninja-forms'); ?></label>
+                            <input type="number" id="iftp-nf-ne-amount" name="amount" step="0.01" min="0" required />
+                        </div>
+                        <div class="iftp-nf-form-field">
+                            <label for="iftp-nf-ne-status"><?php esc_html_e('Status', 'ifthenpay-payments-for-ninja-forms'); ?></label>
+                            <select id="iftp-nf-ne-status" name="status" class="iftp-nf-modal-select" data-iftp-enhance-select>
+                                <?php foreach ($statuses as $value => $label) : ?>
+                                    <option value="<?php echo esc_attr($value); ?>"><?php echo esc_html($label); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="iftp-nf-form-field">
+                        <label for="iftp-nf-ne-method"><?php esc_html_e('Ad Hoc Method', 'ifthenpay-payments-for-ninja-forms'); ?></label>
+                        <select id="iftp-nf-ne-method" name="pay_method" class="iftp-nf-modal-select" data-iftp-enhance-select>
+                            <option value=""><?php esc_html_e('None', 'ifthenpay-payments-for-ninja-forms'); ?></option>
+                            <option value="<?php echo esc_attr(self::MANUAL_CASH_METHOD); ?>" data-icon="<?php echo esc_url(IFTP_NF_URL . 'assets/img/cash.svg'); ?>">
+                                <?php esc_html_e('Dinheiro', 'ifthenpay-payments-for-ninja-forms'); ?>
+                            </option>
+                            <?php foreach ($this->method_catalog() as $entity => $logo) : ?>
+                                <option value="<?php echo esc_attr($entity); ?>" data-icon="<?php echo esc_url($logo); ?>">
+                                    <?php echo esc_html($entity); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="iftp-nf-modal-actions">
+                        <button type="button" class="iftp-nf-modal-cancel" data-iftp-new-entry-cancel>
+                            <?php esc_html_e('Cancel', 'ifthenpay-payments-for-ninja-forms'); ?>
+                        </button>
+                        <button type="submit" class="iftp-nf-modal-confirm" data-iftp-new-entry-submit>
+                            <?php esc_html_e('Create', 'ifthenpay-payments-for-ninja-forms'); ?>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * One reusable confirm dialog for bulk actions, in place of the
+     * jarring native window.confirm(). JS fills in the title/message/
+     * button per action right before opening it.
      */
     private function render_confirm_modal(): void
     {
@@ -611,11 +879,8 @@ class EntriesPage
     }
 
     /**
-     * A single reusable toast for bulk-action success/error feedback —
-     * replaces `window.alert()` and gives the "entries updated in place,
-     * no reload" flow a lightweight confirmation instead of no feedback at
-     * all. Filled in and shown/hidden entirely by JS (`entries.js`,
-     * `showToast()`).
+     * One reusable toast for bulk-action feedback, in place of
+     * window.alert(). Filled in and shown/hidden entirely by JS.
      */
     private function render_toast(): void
     {
@@ -627,13 +892,9 @@ class EntriesPage
     }
 
     /**
-     * The `<tbody>` contents for a page of entries — the empty-state row,
-     * or one `render_row()` per record. Shared between the initial
-     * server-render (`render()`) and `ajax_delete_entries()`, which uses it
-     * to hand the browser back a freshly re-paginated tbody (see that
-     * method) so deleting entries pulls the next page's rows up to refill
-     * the gap instead of just leaving fewer rows on screen until the next
-     * navigation.
+     * The tbody contents for a page of entries. Shared by the initial
+     * render and the delete AJAX handler, so a deleted row's page refills
+     * from the next page instead of just leaving a gap.
      *
      * @param array<int, array<string, mixed>> $slice
      */
@@ -661,152 +922,164 @@ class EntriesPage
         return (string) ob_get_clean();
     }
 
-    private function render_pagination(int $paged, int $pages): void
+    /**
+     * "X - Y out of Z" footer label. Blank at zero since the table body
+     * already shows its own empty-state message.
+     */
+    private function entries_range_label(int $paged, int $per_page, int $total): string
     {
-        if ($pages <= 1) {
-            return;
+        if ($total <= 0) {
+            return '';
         }
-        ?>
-        <nav class="iftp-nf-pagination" aria-label="<?php esc_attr_e('Entries pagination', 'ifthenpay-payments-for-ninja-forms'); ?>">
-            <?php echo $this->pagination_link(1, $paged > 1, __('First page', 'ifthenpay-payments-for-ninja-forms'), '&laquo;', 'iftp-nf-page-btn--edge'); ?>
-            <?php echo $this->pagination_link($paged - 1, $paged > 1, __('Previous page', 'ifthenpay-payments-for-ninja-forms'), '&lsaquo;'); ?>
 
-            <span class="iftp-nf-page-label"><?php esc_html_e('Pag.', 'ifthenpay-payments-for-ninja-forms'); ?></span>
-
-            <span class="iftp-nf-page-numbers">
-                <?php foreach ($this->page_number_sequence($paged, $pages) as $item) : ?>
-                    <?php if ('...' === $item) : ?>
-                        <span class="iftp-nf-page-ellipsis">&hellip;</span>
-                    <?php elseif ($item === $paged) : ?>
-                        <span class="iftp-nf-page-number is-current" aria-current="page"><?php echo esc_html((string) $item); ?></span>
-                    <?php else : ?>
-                        <a class="iftp-nf-page-number" href="<?php echo esc_url($this->filtered_url(['paged' => $item])); ?>"><?php echo esc_html((string) $item); ?></a>
-                    <?php endif; ?>
-                <?php endforeach; ?>
-            </span>
-
-            <form method="get" class="iftp-nf-page-jump">
-                <?php foreach ($this->hidden_filter_inputs() as $name => $value) : ?>
-                    <input type="hidden" name="<?php echo esc_attr($name); ?>" value="<?php echo esc_attr($value); ?>" />
-                <?php endforeach; ?>
-                <label class="screen-reader-text" for="iftp-nf-page-jump-input"><?php esc_html_e('Go to page', 'ifthenpay-payments-for-ninja-forms'); ?></label>
-                <input
-                    type="number"
-                    id="iftp-nf-page-jump-input"
-                    name="paged"
-                    min="1"
-                    max="<?php echo esc_attr((string) $pages); ?>"
-                    value="<?php echo esc_attr((string) $paged); ?>"
-                />
-                <button type="submit" class="iftp-nf-entries-filters-buttons button"><?php esc_html_e('Go', 'ifthenpay-payments-for-ninja-forms'); ?></button>
-            </form>
-
-            <?php echo $this->pagination_link($paged + 1, $paged < $pages, __('Next page', 'ifthenpay-payments-for-ninja-forms'), '&rsaquo;'); ?>
-            <?php echo $this->pagination_link($pages, $paged < $pages, __('Last page', 'ifthenpay-payments-for-ninja-forms'), '&raquo;', 'iftp-nf-page-btn--edge'); ?>
-        </nav>
-        <?php
-    }
-
-    private function pagination_link(int $target_page, bool $enabled, string $label, string $glyph, string $extra_class = ''): string
-    {
-        $class = trim('iftp-nf-page-btn ' . $extra_class . ($enabled ? '' : ' is-disabled'));
-
-        if (! $enabled) {
-            return sprintf(
-                '<span class="%1$s" aria-hidden="true">%2$s</span>',
-                esc_attr($class),
-                $glyph
-            );
-        }
+        $first = ($paged - 1) * $per_page + 1;
+        $last  = min($paged * $per_page, $total);
 
         return sprintf(
-            '<a class="%1$s" href="%2$s" aria-label="%3$s">%4$s</a>',
-            esc_attr($class),
-            esc_url($this->filtered_url(['paged' => $target_page])),
-            esc_attr($label),
-            $glyph
+            /* translators: 1: first entry number shown, 2: last entry number shown, 3: total number of entries */
+            __('%1$d - %2$d out of %3$d', 'ifthenpay-payments-for-ninja-forms'),
+            $first,
+            $last,
+            $total
         );
     }
 
     /**
-     * Builds the page-number sequence for pagination, collapsing distant
-     * pages behind a single '...' marker — first page, last page, and a
-     * window of one neighbour on each side of the current page are always
-     * kept.
-     *
-     * @return array<int, int|string>
+     * Pagination — prev/next buttons, page-number pills, and a
+     * jump-to-page field. Shows a 4-page window around the current page.
      */
-    private function page_number_sequence(int $current, int $total): array
+    /**
+     * @param array<string, mixed>|null $base Filter/sort state to build
+     *     links from instead of $_GET — needed when called from an AJAX
+     *     handler, where $_GET reflects the admin-ajax.php request, not
+     *     the page.
+     */
+    private function render_pagination(int $paged, int $pages, ?array $base = null): void
     {
-        $neighbours = 1;
-        $sequence   = [];
-        $previous   = 0;
-
-        for ($page = 1; $page <= $total; $page++) {
-            $keep = 1 === $page || $total === $page || abs($page - $current) <= $neighbours;
-
-            if (! $keep) {
-                continue;
-            }
-
-            if ($previous > 0 && $page - $previous > 1) {
-                $sequence[] = '...';
-            }
-
-            $sequence[] = $page;
-            $previous   = $page;
+        if ($pages <= 1) {
+            return;
         }
 
-        return $sequence;
+        $window_start = max(1, $paged - 1);
+        $window_end   = min($paged + 2, $pages);
+
+        if (($window_end - $window_start) < 3) {
+            $window_end = min($window_start + 3, $pages);
+
+            if (($window_end - $window_start) < 3) {
+                $window_start = max(1, $window_end - 3);
+            }
+        }
+
+        $show_page_one       = $window_start > 1;
+        $show_left_ellipsis  = $window_start > 2;
+        $show_last           = $window_end < $pages;
+        $show_right_ellipsis = $show_last && $window_end < $pages - 1;
+        ?>
+        <nav class="iftp-nf-pagination" aria-label="<?php esc_attr_e('Entries pagination', 'ifthenpay-payments-for-ninja-forms'); ?>">
+            <?php echo $this->pagination_nav_link($paged - 1, $paged > 1, __('Previous page', 'ifthenpay-payments-for-ninja-forms'), 'prev', $base); ?>
+
+            <span class="iftp-nf-page-numbers">
+                <?php if ($show_page_one) : ?>
+                    <a class="iftp-nf-page-number" href="<?php echo esc_url($this->filtered_url(['paged' => 1], false, $base)); ?>" aria-label="<?php esc_attr_e('Page 1', 'ifthenpay-payments-for-ninja-forms'); ?>">1</a>
+                <?php endif; ?>
+
+                <?php if ($show_left_ellipsis) : ?>
+                    <span class="iftp-nf-page-ellipsis" aria-hidden="true">&hellip;</span>
+                <?php endif; ?>
+
+                <?php for ($page = $window_start; $page <= $window_end; $page++) : ?>
+                    <?php if ($page === $paged) : ?>
+                        <span class="iftp-nf-page-number is-current" aria-current="page"><?php echo esc_html((string) $page); ?></span>
+                    <?php else : ?>
+                        <a
+                            class="iftp-nf-page-number"
+                            href="<?php echo esc_url($this->filtered_url(['paged' => $page], false, $base)); ?>"
+                            aria-label="<?php echo esc_attr(sprintf(
+                                /* translators: %d: page number */
+                                __('Page %d', 'ifthenpay-payments-for-ninja-forms'),
+                                $page
+                            )); ?>"
+                        ><?php echo esc_html((string) $page); ?></a>
+                    <?php endif; ?>
+                <?php endfor; ?>
+
+                <?php if ($show_right_ellipsis) : ?>
+                    <input
+                        type="text"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                        class="iftp-nf-page-jump-input"
+                        data-total="<?php echo esc_attr((string) $pages); ?>"
+                        data-base-url="<?php echo esc_url($this->filtered_url(['paged' => null], false, $base)); ?>"
+                        placeholder="&hellip;"
+                        title="<?php esc_attr_e('Type a page number and press Enter', 'ifthenpay-payments-for-ninja-forms'); ?>"
+                        autocomplete="off"
+                    />
+                <?php endif; ?>
+
+                <?php if ($show_last) : ?>
+                    <a
+                        class="iftp-nf-page-number"
+                        href="<?php echo esc_url($this->filtered_url(['paged' => $pages], false, $base)); ?>"
+                        aria-label="<?php echo esc_attr(sprintf(
+                            /* translators: %d: page number */
+                            __('Page %d', 'ifthenpay-payments-for-ninja-forms'),
+                            $pages
+                        )); ?>"
+                    ><?php echo esc_html((string) $pages); ?></a>
+                <?php endif; ?>
+            </span>
+
+            <?php echo $this->pagination_nav_link($paged + 1, $paged < $pages, __('Next page', 'ifthenpay-payments-for-ninja-forms'), 'next', $base); ?>
+        </nav>
+        <?php
     }
 
     /**
-     * The hidden inputs the page-jump form needs so jumping to a page
-     * number preserves every other active filter/sort/per-page choice
-     * instead of resetting them.
-     *
-     * @return array<string, string>
+     * @param array<string, mixed>|null $base See `render_pagination()`.
      */
-    private function hidden_filter_inputs(): array
+    private function pagination_nav_link(int $target_page, bool $enabled, string $label, string $direction, ?array $base = null): string
     {
-        $inputs = ['page' => self::PAGE_SLUG];
+        $points = 'prev' === $direction ? '15 18 9 12 15 6' : '9 18 15 12 9 6';
+        $svg    = sprintf(
+            '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="%s" /></svg>',
+            esc_attr($points)
+        );
 
-        $filters = $this->current_filters();
-
-        if ('' !== $filters['s']) {
-            $inputs['s'] = $filters['s'];
+        if (! $enabled) {
+            return sprintf('<span class="iftp-nf-page-btn is-disabled" aria-hidden="true">%s</span>', $svg);
         }
 
-        if ('' !== $filters['status']) {
-            $inputs['status'] = $filters['status'];
-        }
+        return sprintf(
+            '<a class="iftp-nf-page-btn" href="%1$s" aria-label="%2$s">%3$s</a>',
+            esc_url($this->filtered_url(['paged' => $target_page], false, $base)),
+            esc_attr($label),
+            $svg
+        );
+    }
 
-        if ($filters['form_id'] > 0) {
-            $inputs['form_id'] = (string) $filters['form_id'];
-        }
-
-        if ('' !== $filters['date_from']) {
-            $inputs['date_from'] = $filters['date_from'];
-        }
-
-        if ('' !== $filters['date_to']) {
-            $inputs['date_to'] = $filters['date_to'];
-        }
-
-        $orderby = $this->sanitize_orderby($_GET['orderby'] ?? '');
-
-        if ('' !== $orderby) {
-            $inputs['orderby'] = $orderby;
-            $inputs['order']   = $this->sanitize_order($_GET['order'] ?? '');
-        }
-
-        $per_page = $this->sanitize_per_page($_GET['per_page'] ?? '');
-
-        if ($per_page !== self::DEFAULT_PER_PAGE) {
-            $inputs['per_page'] = (string) $per_page;
-        }
-
-        return $inputs;
+    /**
+     * Sticky "scroll to top" button — shown once scrolled down, and only
+     * when there's enough on the page (>10 rows) to make scrolling back
+     * up tedious.
+     */
+    private function render_scroll_to_top_button(int $per_page): void
+    {
+        ?>
+        <button
+            type="button"
+            id="iftp-nf-scroll-btn"
+            class="iftp-nf-scroll-btn"
+            data-per-page="<?php echo esc_attr((string) $per_page); ?>"
+            aria-label="<?php esc_attr_e('Scroll to top', 'ifthenpay-payments-for-ninja-forms'); ?>"
+        >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="12" y1="19" x2="12" y2="6" />
+                <polyline points="6 12 12 6 18 12" />
+            </svg>
+        </button>
+        <?php
     }
 
     /**
@@ -814,68 +1087,77 @@ class EntriesPage
      */
     private function render_row(array $record, int $index = 0): void
     {
-        // Reserved up front for every attempt (see
-        // `Gateway\IfthenpayGateway::reserve_submission()`). `sub_id` (the
-        // WP post ID) is shown here, at Victor's request — the same value
-        // `Gateway\IfthenpayGateway::generate_reference()` builds the
-        // payment reference from, and it's also what links to the real
-        // edit screen (`render_details()`). `seq_num` — Ninja Forms' own
-        // "Submission ID" (its Submissions screen's "#" column), a per-form
-        // sequence — is kept only to show as an extra detail
-        // (`render_details()`). Both are only missing for the rare form
-        // with no "save" action attached at all.
+        // sub_id is the WP post ID, reserved up front for every attempt —
+        // it's what the payment reference is built from and what links
+        // to the edit screen. Missing only for the rare form with no
+        // "save" action.
         $sub_id  = $record['data']['actions']['save']['sub_id'] ?? null;
-        // `Gateway\IfthenpayGateway::process()`'s test-mode path: no real
-        // submission ever exists for these (Ninja Forms' own `is_preview`
-        // flag stopped one from being created), so there's no `sub_id` to
-        // show — the `TEST_n` reference itself is the only identifier, and
-        // is shown in its place, badged so it's never mistaken for a real
-        // customer's payment.
+        // Test-mode attempts never get a real submission, so there's no
+        // sub_id — I show the TEST_n reference instead, badged so it's
+        // never mistaken for a real payment.
         $is_test = ! empty($record['is_test']);
         $row_id  = 'iftp-nf-details-' . sanitize_html_class($record['ref']);
-        // Staggered entrance: each row's fade/slide-in is delayed a little
-        // past the previous one's, capped so a long page doesn't leave the
-        // last rows waiting a visibly long time for their turn.
+        // I stagger each row's fade-in a bit past the previous one's,
+        // capped so a long page doesn't leave the last rows waiting too
+        // long.
         $delay_ms    = min($index * 18, 300);
         $customer    = $this->customer_info($record);
         $payment_url = (string) ($record['payment_url'] ?? '');
+        // Ninja Forms' own per-form sequential "Submission ID" — its own
+        // Submissions screen's "#" column. Its own table column now
+        // (`organizable_columns()`), not tucked inside the details panel.
+        $seq_num = $record['data']['actions']['save']['seq_num'] ?? null;
         ?>
         <tr class="iftp-nf-entry-row" data-iftp-ref="<?php echo esc_attr($record['ref']); ?>" style="animation-delay: <?php echo esc_attr((string) $delay_ms); ?>ms">
             <td class="iftp-nf-col-check">
                 <input type="checkbox" class="iftp-nf-row-check" data-iftp-row-check value="<?php echo esc_attr($record['ref']); ?>" aria-label="<?php esc_attr_e('Select entry', 'ifthenpay-payments-for-ninja-forms'); ?>" />
             </td>
             <td class="iftp-nf-col-narrow" data-col="id">
-                <button type="button" class="button-link iftp-nf-details-toggle" data-details-target="<?php echo esc_attr($row_id); ?>">
+                <span class="iftp-nf-id-value">
                     <?php if ($is_test) : ?>
                         <span class="iftp-nf-test-badge"><?php esc_html_e('TEST', 'ifthenpay-payments-for-ninja-forms'); ?></span>
                         <?php echo esc_html($record['ref']); ?>
                     <?php else : ?>
                         <?php echo esc_html(null !== $sub_id ? (string) $sub_id : '—'); ?>
                     <?php endif; ?>
-                </button>
-                <?php $this->render_id_row_actions($record, $sub_id); ?>
+                </span>
+                <?php $this->render_id_row_actions($record, $sub_id, $row_id); ?>
             </td>
             <td class="iftp-nf-col-customer" data-col="customer">
-                <?php if ('' !== $customer['name']) : ?>
-                    <div class="iftp-nf-customer-name"><?php echo esc_html($customer['name']); ?></div>
-                <?php endif; ?>
-                <?php if ('' !== $customer['email']) : ?>
-                    <div class="iftp-nf-customer-email"><?php echo esc_html($customer['email']); ?></div>
-                <?php elseif ('' === $customer['name']) : ?>
-                    &mdash;
-                <?php endif; ?>
+                <?php
+                // Both lines always render (blank rather than collapsed when
+                // there's no email) so every row reserves the same height
+                // regardless of whether this particular customer has one —
+                // at Victor's request, so rows don't visibly vary in height
+                // depending on what got submitted.
+                ?>
+                <div class="iftp-nf-customer-name">
+                    <?php
+                    if ('' !== $customer['name']) {
+                        echo esc_html($customer['name']);
+                    } elseif ('' === $customer['email']) {
+                        echo '&mdash;';
+                    } else {
+                        echo '&nbsp;';
+                    }
+                    ?>
+                </div>
+                <div class="iftp-nf-customer-email"><?php echo '' !== $customer['email'] ? esc_html($customer['email']) : '&nbsp;'; ?></div>
             </td>
-            <td data-col="request_id"><?php echo esc_html('' !== $record['request_id'] ? $record['request_id'] : '—'); ?></td>
             <td data-col="form"><?php echo esc_html($this->form_title((int) $record['form_id'])); ?></td>
             <td data-col="method"><?php $this->render_method_cell((string) $record['pay_method']); ?></td>
-            <td class="iftp-nf-col-amount" data-col="amount">
-                <button type="button" class="button-link iftp-nf-details-toggle" data-details-target="<?php echo esc_attr($row_id); ?>">
-                    <?php echo esc_html(number_format((float) $record['amount'], 2)); ?>
-                </button>
-            </td>
+            <td class="iftp-nf-col-narrow" data-col="submission_id"><?php echo esc_html(null !== $seq_num ? (string) $seq_num : '—'); ?></td>
+            <td class="iftp-nf-col-amount" data-col="amount"><?php echo esc_html(number_format((float) $record['amount'], 2)); ?></td>
             <td data-col="status">
-                <span class="iftp-nf-status-badge iftp-nf-status-badge--<?php echo esc_attr($record['status']); ?>">
-                    <?php echo esc_html(ucfirst($record['status'])); ?>
+                <?php
+                // Cancelled reads as "Failed" here — its own status tab and
+                // bulk action are gone (see `status_filters()`), at
+                // Victor's request. The stored status is untouched; this is
+                // display-only.
+                $display_status = SubmissionStore::STATUS_CANCELLED === $record['status'] ? SubmissionStore::STATUS_FAILED : $record['status'];
+                ?>
+                <span class="iftp-nf-status-badge iftp-nf-status-badge--<?php echo esc_attr($display_status); ?>">
+                    <?php echo esc_html(ucfirst($display_status)); ?>
                 </span>
             </td>
             <td data-col="payment_link">
@@ -892,61 +1174,50 @@ class EntriesPage
         </tr>
         <tr id="<?php echo esc_attr($row_id); ?>" class="iftp-nf-entry-details" hidden>
             <td colspan="10">
-                <?php $this->render_details($record, $sub_id); ?>
+                <?php $this->render_details($record); ?>
             </td>
         </tr>
         <?php
     }
 
     /**
-     * Hover-revealed text row actions right under the ID — WP core's own
-     * list-table pattern (`WP_List_Table::row_actions()`) rather than a
-     * dedicated actions column: reopen the hosted payment link and jump
-     * straight to the real Ninja Forms submission — each only shown once
-     * there's actually something behind it (no payment link before
-     * `Gateway\IfthenpayGateway::process()` reserves one; no submission for
-     * a `TEST_n` preview attempt, see `render_row()`). Sits flush under the
-     * ID button and fades/slides in on row hover (`admin.css`) rather than
-     * a dedicated "Copy Ref" control, at Victor's request.
+     * Hover-revealed row actions under the ID, in a single horizontal line
+     * (at Victor's request — the vertical stacked version took up too much
+     * space) — "View" toggles the details panel (moved here from the ID
+     * itself, which is now plain text); "Edit Fields" jumps to the real
+     * Ninja Forms submission (only once there's one to edit); "Delete"
+     * removes just this entry, reusing the same confirm-modal flow as bulk
+     * delete.
      *
      * @param array<string, mixed> $record
      */
-    private function render_id_row_actions(array $record, $sub_id): void
+    private function render_id_row_actions(array $record, $sub_id, string $row_id): void
     {
-        $payment_url = (string) ($record['payment_url'] ?? '');
-        $has_link    = '' !== $payment_url;
-        $has_sub     = null !== $sub_id;
-
-        if (! $has_link && ! $has_sub) {
-            return;
-        }
+        $has_sub = null !== $sub_id;
         ?>
         <div class="iftp-nf-row-actions">
-            <?php if ($has_link) : ?>
-                <a href="<?php echo esc_url($payment_url); ?>" target="_blank" rel="noopener noreferrer">
-                    <?php esc_html_e('Open Link', 'ifthenpay-payments-for-ninja-forms'); ?>
-                </a>
-            <?php endif; ?>
-            <?php if ($has_link && $has_sub) : ?>
-                <span class="iftp-nf-row-actions-sep" aria-hidden="true">|</span>
-            <?php endif; ?>
+            <button type="button" class="button-link iftp-nf-row-action iftp-nf-row-action--view iftp-nf-details-toggle" data-details-target="<?php echo esc_attr($row_id); ?>">
+                <?php esc_html_e('View', 'ifthenpay-payments-for-ninja-forms'); ?>
+            </button>
             <?php if ($has_sub) : ?>
-                <a href="<?php echo esc_url(admin_url('post.php?post=' . (int) $sub_id . '&action=edit')); ?>">
-                    <?php esc_html_e('View', 'ifthenpay-payments-for-ninja-forms'); ?>
+                <span class="iftp-nf-row-actions-sep" aria-hidden="true">|</span>
+                <a class="iftp-nf-row-action iftp-nf-row-action--edit" href="<?php echo esc_url(admin_url('post.php?post=' . (int) $sub_id . '&action=edit')); ?>">
+                    <?php esc_html_e('Edit Fields', 'ifthenpay-payments-for-ninja-forms'); ?>
                 </a>
             <?php endif; ?>
+            <span class="iftp-nf-row-actions-sep" aria-hidden="true">|</span>
+            <button type="button" class="button-link iftp-nf-row-action iftp-nf-row-action--delete" data-iftp-row-delete="<?php echo esc_attr($record['ref']); ?>">
+                <?php esc_html_e('Delete', 'ifthenpay-payments-for-ninja-forms'); ?>
+            </button>
         </div>
         <?php
     }
 
     /**
-     * Best-effort customer name/email for the Customer column. Ninja Forms
-     * submissions have no fixed "customer" concept — this reads the same
-     * submitted-field snapshot as `submitted_fields()`, looking for Ninja
-     * Forms' own dedicated First Name / Last Name / Email field types
-     * (`ninja-forms/includes/Fields/{FirstName,LastName,Email}.php`), and
-     * falling back to any field merely labelled "name" for forms that use a
-     * single combined name field instead.
+     * Best-effort customer name/email for the Customer column. Ninja
+     * Forms has no fixed "customer" concept, so I look for its
+     * First/Last Name and Email field types, falling back to any field
+     * labelled "name".
      *
      * @param array<string, mixed> $record
      * @return array{name: string, email: string}
@@ -993,109 +1264,90 @@ class EntriesPage
     /**
      * @param array<string, mixed> $record
      */
-    private function render_details(array $record, $sub_id): void
+    private function render_details(array $record): void
     {
-        $seq_num = $record['data']['actions']['save']['seq_num'] ?? null;
         ?>
-        <div class="iftp-nf-details-grid">
-            <div>
-                <strong><?php esc_html_e('Reference', 'ifthenpay-payments-for-ninja-forms'); ?>:</strong>
-                <code><?php echo esc_html($record['ref']); ?></code>
-            </div>
-            <div>
-                <strong><?php esc_html_e('Request ID', 'ifthenpay-payments-for-ninja-forms'); ?>:</strong>
-                <?php echo esc_html('' !== $record['request_id'] ? $record['request_id'] : '—'); ?>
-            </div>
-            <div>
-                <strong><?php esc_html_e('Transaction ID', 'ifthenpay-payments-for-ninja-forms'); ?>:</strong>
-                <?php
-                // Captured as soon as the customer's browser returns from a
-                // genuine success redirect (see
-                // `Ajax\FrontendController::verify_payment()`), independent
-                // of "Request ID" above — that one is only ever set once the
-                // payment is actually confirmed paid (`SubmissionStore::mark_paid()`),
-                // so this stays visible even for a transaction id that never
-                // confirmed (e.g. the transaction-status API was transiently
-                // unreachable, or the payment was still a Multibanco/Payshop
-                // reference at that point).
-                $transaction_id = (string) ($record['transaction_id'] ?? '');
-                echo esc_html('' !== $transaction_id ? $transaction_id : '—');
-                ?>
-            </div>
-            <div>
-                <strong><?php esc_html_e('Payment Link', 'ifthenpay-payments-for-ninja-forms'); ?>:</strong>
-                <?php $payment_url = (string) ($record['payment_url'] ?? ''); ?>
-                <?php if ('' !== $payment_url) : ?>
-                    <a href="<?php echo esc_url($payment_url); ?>" target="_blank" rel="noopener noreferrer">
-                        <?php echo esc_html($payment_url); ?>
-                    </a>
-                <?php else : ?>
-                    &mdash;
-                <?php endif; ?>
-            </div>
-            <?php if (null !== $sub_id) : ?>
-                <div>
-                    <strong><?php esc_html_e('Submission', 'ifthenpay-payments-for-ninja-forms'); ?>:</strong>
-                    <a href="<?php echo esc_url(admin_url('post.php?post=' . (int) $sub_id . '&action=edit')); ?>">
-                        <?php esc_html_e('View entry', 'ifthenpay-payments-for-ninja-forms'); ?>
-                    </a>
+        <div class="iftp-nf-details-panel">
+            <div class="iftp-nf-details-grid">
+                <div class="iftp-nf-detail-item">
+                    <span class="iftp-nf-detail-label"><?php esc_html_e('Reference', 'ifthenpay-payments-for-ninja-forms'); ?></span>
+                    <code class="iftp-nf-detail-code"><?php echo esc_html($record['ref']); ?></code>
                 </div>
-            <?php endif; ?>
-            <div>
-                <strong><?php esc_html_e('Submission ID', 'ifthenpay-payments-for-ninja-forms'); ?>:</strong>
-                <?php echo esc_html(null !== $seq_num ? (string) $seq_num : '—'); ?>
+                <div class="iftp-nf-detail-item">
+                    <span class="iftp-nf-detail-label"><?php esc_html_e('Request ID', 'ifthenpay-payments-for-ninja-forms'); ?></span>
+                    <span class="iftp-nf-detail-value"><?php echo esc_html('' !== $record['request_id'] ? $record['request_id'] : '—'); ?></span>
+                </div>
+                <div class="iftp-nf-detail-item">
+                    <span class="iftp-nf-detail-label"><?php esc_html_e('Transaction ID', 'ifthenpay-payments-for-ninja-forms'); ?></span>
+                    <span class="iftp-nf-detail-value">
+                    <?php
+                    // I capture this as soon as the browser returns from a
+                    // success redirect, independent of "Request ID" above
+                    // (which only gets set once the payment actually confirms
+                    // paid) — so it stays visible even if confirmation never
+                    // came through.
+                    $transaction_id = (string) ($record['transaction_id'] ?? '');
+                    echo esc_html('' !== $transaction_id ? $transaction_id : '—');
+                    ?>
+                    </span>
+                </div>
+                <div class="iftp-nf-detail-item">
+                    <span class="iftp-nf-detail-label"><?php esc_html_e('Payment Link', 'ifthenpay-payments-for-ninja-forms'); ?></span>
+                    <?php $payment_url = (string) ($record['payment_url'] ?? ''); ?>
+                    <?php if ('' !== $payment_url) : ?>
+                        <a class="iftp-nf-detail-value iftp-nf-detail-link" href="<?php echo esc_url($payment_url); ?>" target="_blank" rel="noopener noreferrer">
+                            <?php echo esc_html($payment_url); ?>
+                        </a>
+                    <?php else : ?>
+                        <span class="iftp-nf-detail-value">&mdash;</span>
+                    <?php endif; ?>
+                </div>
+                <div class="iftp-nf-detail-item">
+                    <span class="iftp-nf-detail-label"><?php esc_html_e('Form ID', 'ifthenpay-payments-for-ninja-forms'); ?></span>
+                    <span class="iftp-nf-detail-value">
+                    <?php
+                    $detail_form_id = (int) $record['form_id'];
+                    echo esc_html(SubmissionStore::AD_HOC_FORM_ID === $detail_form_id ? $this->form_title($detail_form_id) : (string) $detail_form_id);
+                    ?>
+                    </span>
+                </div>
+                <div class="iftp-nf-detail-item">
+                    <span class="iftp-nf-detail-label"><?php esc_html_e('Last Updated', 'ifthenpay-payments-for-ninja-forms'); ?></span>
+                    <span class="iftp-nf-detail-value"><?php echo esc_html(wp_date('Y-m-d H:i', (int) $record['updated_at'])); ?></span>
+                </div>
             </div>
-            <div>
-                <strong><?php esc_html_e('Form ID', 'ifthenpay-payments-for-ninja-forms'); ?>:</strong>
-                <?php echo esc_html((string) (int) $record['form_id']); ?>
-            </div>
-            <div>
-                <strong><?php esc_html_e('Last Updated', 'ifthenpay-payments-for-ninja-forms'); ?>:</strong>
-                <?php echo esc_html(wp_date('Y-m-d H:i', (int) $record['updated_at'])); ?>
-            </div>
+            <?php
+            $fields = $this->submissions->submitted_fields($record);
+
+            if ([] !== $fields) :
+                ?>
+                <div class="iftp-nf-details-fields">
+                    <span class="iftp-nf-detail-label iftp-nf-details-fields-label"><?php esc_html_e('Submitted Fields', 'ifthenpay-payments-for-ninja-forms'); ?></span>
+                    <table class="iftp-nf-details-fields-table">
+                        <tbody>
+                            <?php foreach ($fields as $label => $value) : ?>
+                                <tr>
+                                    <th><?php echo esc_html($label); ?></th>
+                                    <td><?php echo esc_html($value); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php
+            endif;
+            ?>
         </div>
         <?php
-        $fields = $this->submissions->submitted_fields($record);
-
-        if ([] !== $fields) :
-            ?>
-            <table class="widefat">
-                <tbody>
-                    <?php foreach ($fields as $label => $value) : ?>
-                        <tr>
-                            <th style="width: 25%;"><?php echo esc_html($label); ?></th>
-                            <td><?php echo esc_html($value); ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-            <?php
-        endif;
     }
 
 
     /**
-     * The Ninja Forms "peeking ninja" mascot, purely decorative. Rests
-     * bottom-left (`nf-shy-ninja-home`, tucked slightly under the page edge
-     * so only his head/face shows), wearing the ifthenpay mark on his
-     * forehead (`assets/img/icon-white.svg`).
-     *
-     * Each hover advances one step of a 4-step cycle — right, home, right,
-     * then a full exit off-screen to the left — shaking in place before
-     * every step. Once he exits left, he automatically (no hover needed)
-     * pops a CSS smoke-bomb puff, then a slower smoke cloud blooms over his
-     * starting spot while he gets back up into view as it clears, and the
-     * hover cycle resets. Left alone for a few seconds, he either trembles
-     * gently in place (if at home) or walks himself back home first (if
-     * left mid-cycle), then trembles.
-     *
-     * See `assets/js/entries.js` (`bindPeekingNinja()`) for the state
-     * machine and `assets/css/admin.css` for the movement/smoke/idle-tremble
-     * rules.
-     *
-     * Hidden by default (`nf-shy-ninja-hidden`) — only the footer easter-egg
-     * dot (`inject_ninja_toggle()`) reveals him, and nothing persists that
-     * across reloads, so every fresh page load starts hidden again.
+     * The Ninja Forms "peeking ninja" mascot, purely decorative. Each
+     * hover advances a 4-step animation cycle (out, home, out, exit with
+     * a smoke puff), and he walks himself home if left mid-cycle. Hidden
+     * by default; the footer easter-egg button reveals him, resetting on
+     * every reload.
      */
     private function render_peeking_ninja(): void
     {
@@ -1126,19 +1378,27 @@ class EntriesPage
                 </svg>
             </div>
             <span class="nf-spark-peeking-ninja-wrapper__smoke" id="nf-peeking-ninja-smoke" aria-hidden="true"></span>
+            <span class="nf-spark-peeking-ninja-wrapper__smoke-cluster" aria-hidden="true">
+                <?php
+                // 22 puffs, each positioned/sized/staggered purely by its
+                // `nth-child` index in admin.css — the markup itself doesn't
+                // need to tell them apart.
+                for ($i = 0; $i < 22; $i++) :
+                    ?>
+                    <span class="nf-spark-peeking-ninja-wrapper__smoke-puff"></span>
+                    <?php
+                endfor;
+                ?>
+            </span>
         </div>
         <?php
     }
 
     /**
-     * Renders the Method column as a small logo+label pill (matching the
-     * reference design) when the value resolves against the connected
-     * account's method catalog (`SettingsRepository::get_methods()` — the
-     * same list `Admin\GatewaySettingsField` renders, already synced with
-     * ifthenpay's logos by `Sync\GatewaySync`), falling back to the bare
-     * string for anything that doesn't resolve (e.g. `pay_method` is only
-     * ever set once a payment actually confirms paid, see
-     * `SubmissionStore::mark_paid()`, so most rows show the em dash instead).
+     * Renders the Method column as a logo+label pill when it resolves
+     * against the method catalog, falling back to the bare string
+     * otherwise. pay_method is only set once a payment confirms paid, so
+     * most rows just show the em dash.
      */
     private function render_method_cell(string $pay_method): void
     {
@@ -1148,30 +1408,69 @@ class EntriesPage
             return;
         }
 
-        $method = $this->method_catalog()[$pay_method] ?? null;
+        if (0 === strpos($pay_method, self::AD_HOC_LABEL_PREFIX)) {
+            $method_label = substr($pay_method, strlen(self::AD_HOC_LABEL_PREFIX));
+            $logo         = self::MANUAL_CASH_LABEL === $method_label
+                ? (IFTP_NF_URL . 'assets/img/cash.svg')
+                : (string) ($this->method_catalog()[$method_label] ?? '');
+            ?>
+            <span class="iftp-nf-method-pill">
+                <?php if ('' !== $logo) : ?>
+                    <img src="<?php echo esc_url($logo); ?>" alt="" loading="lazy" />
+                <?php endif; ?>
+                <?php echo esc_html($pay_method); ?>
+            </span>
+            <?php
 
-        if (null === $method) {
+            return;
+        }
+
+        // A bare (unprefixed) MANUAL_CASH_METHOD value only exists on rows
+        // created before AD_HOC_LABEL_PREFIX landed — kept so those don't
+        // regress to a plain unstyled string.
+        if (self::MANUAL_CASH_METHOD === $pay_method) {
+            ?>
+            <span class="iftp-nf-method-pill">
+                <img src="<?php echo esc_url(IFTP_NF_URL . 'assets/img/cash.svg'); ?>" alt="" loading="lazy" />
+                <?php esc_html_e('Dinheiro', 'ifthenpay-payments-for-ninja-forms'); ?>
+            </span>
+            <?php
+
+            return;
+        }
+
+        $logo = $this->method_catalog()[$pay_method] ?? null;
+
+        if (null === $logo) {
             echo esc_html($pay_method);
 
             return;
         }
         ?>
         <span class="iftp-nf-method-pill">
-            <?php if ('' !== $method['logo']) : ?>
-                <img src="<?php echo esc_url($method['logo']); ?>" alt="" loading="lazy" />
+            <?php if ('' !== $logo) : ?>
+                <img src="<?php echo esc_url($logo); ?>" alt="" loading="lazy" />
             <?php endif; ?>
-            <?php echo esc_html($method['alias']); ?>
+            <?php echo esc_html($pay_method); ?>
         </span>
         <?php
     }
 
     /**
-     * @var array<string, array{alias: string, logo: string}>|null
+     * @var array<string, string>|null
      */
     private ?array $method_catalog_cache = null;
 
     /**
-     * @return array<string, array{alias: string, logo: string}>
+     * Entity code (e.g. `MB`) => logo URL, for every connected method — the
+     * entity is what actually identifies a method everywhere outside the
+     * Settings screen's own connected-methods table (`GatewaySettingsField.php`,
+     * the one place `Method`/alias, e.g. `MULTIBANCO`, is meaningful — it's
+     * what that table uses to let the admin enable/disable each one). Here
+     * and in `render_create_entry_modal()`, `$pay_method` (an entity code)
+     * is both the stored value and the label, at Victor's request.
+     *
+     * @return array<string, string>
      */
     private function method_catalog(): array
     {
@@ -1188,20 +1487,16 @@ class EntriesPage
                 continue;
             }
 
-            $catalog[$entity] = [
-                'alias' => (string) ($method['alias'] ?? $entity),
-                'logo'  => (string) ($method['logo'] ?? ''),
-            ];
+            $catalog[$entity] = (string) ($method['logo'] ?? '');
         }
 
         return $this->method_catalog_cache = $catalog;
     }
 
     /**
-     * Memoized per request — called once per row rendered plus once per
-     * record whenever a search term is active (`render()`), so on a 10k-row
-     * install this otherwise repeats the same `Ninja_Forms()->form()` lookup
-     * thousands of times over for what's usually a handful of distinct forms.
+     * I memoize this per request — without it, a 10k-row install repeats
+     * the same form lookup thousands of times over for a handful of
+     * distinct forms.
      *
      * @var array<int, string>
      */
@@ -1209,6 +1504,10 @@ class EntriesPage
 
     private function form_title(int $form_id): string
     {
+        if (SubmissionStore::AD_HOC_FORM_ID === $form_id) {
+            return __('Ad Hoc Payments', 'ifthenpay-payments-for-ninja-forms');
+        }
+
         if (array_key_exists($form_id, $this->form_title_cache)) {
             return $this->form_title_cache[$form_id];
         }
@@ -1230,32 +1529,40 @@ class EntriesPage
 
     /**
      * Rebuilds the current URL with the given params overridden — passing
-     * `null` for a param removes it (used to drop `paged` when switching
-     * status/search, and to drop nothing when just paging).
+     * null for a param removes it.
      *
      * @param array<string, mixed> $overrides
      */
-    private function filtered_url(array $overrides, bool $reset = false): string
+    /**
+     * @param array<string, mixed>|null $base Filter/sort state to build
+     *     the URL from instead of $_GET — pass this when called outside a
+     *     normal page GET request (e.g. from an AJAX handler).
+     */
+    private function filtered_url(array $overrides, bool $reset = false, ?array $base = null): string
     {
         if ($reset) {
             return add_query_arg(['page' => self::PAGE_SLUG], admin_url('admin.php'));
         }
 
-        $form_id_filter = (int) ($_GET['form_id'] ?? 0);
-        $orderby        = $this->sanitize_orderby($_GET['orderby'] ?? '');
+        if (null !== $base) {
+            $args = ['page' => self::PAGE_SLUG] + $base;
+        } else {
+            $form_id_filter = (int) ($_GET['form_id'] ?? 0);
+            $orderby        = $this->sanitize_orderby($_GET['orderby'] ?? '');
 
-        $args = [
-            'page'      => self::PAGE_SLUG,
-            's'         => sanitize_text_field(wp_unslash($_GET['s'] ?? '')),
-            'status'    => sanitize_text_field(wp_unslash($_GET['status'] ?? '')),
-            'form_id'   => $form_id_filter > 0 ? (string) $form_id_filter : '',
-            'date_from' => $this->sanitize_date($_GET['date_from'] ?? ''),
-            'date_to'   => $this->sanitize_date($_GET['date_to'] ?? ''),
-            'orderby'   => $orderby,
-            'order'     => '' !== $orderby ? $this->sanitize_order($_GET['order'] ?? '') : '',
-            'per_page'  => $this->sanitize_per_page($_GET['per_page'] ?? ''),
-            'paged'     => (int) ($_GET['paged'] ?? 1),
-        ];
+            $args = [
+                'page'      => self::PAGE_SLUG,
+                's'         => sanitize_text_field(wp_unslash($_GET['s'] ?? '')),
+                'status'    => sanitize_text_field(wp_unslash($_GET['status'] ?? '')),
+                'form_id'   => $form_id_filter > 0 ? (string) $form_id_filter : '',
+                'date_from' => $this->sanitize_date($_GET['date_from'] ?? ''),
+                'date_to'   => $this->sanitize_date($_GET['date_to'] ?? ''),
+                'orderby'   => $orderby,
+                'order'     => '' !== $orderby ? $this->sanitize_order($_GET['order'] ?? '') : '',
+                'per_page'  => $this->sanitize_per_page($_GET['per_page'] ?? ''),
+                'paged'     => (int) ($_GET['paged'] ?? 1),
+            ];
+        }
 
         foreach ($overrides as $key => $value) {
             if (null === $value) {
@@ -1287,13 +1594,9 @@ class EntriesPage
     }
 
     /**
-     * The filter/search/status-tab/pagination/sort state from the current
-     * request — read from `$_GET` on the initial page render, and localized
-     * into JS (`enqueue_assets()`) so a bulk AJAX action
-     * (`ajax_update_status()`, `ajax_delete_entries()`) can recompute
-     * status-tab counts and the footer total — and, for delete, the current
-     * page's rows themselves — against the exact same view instead of a
-     * stale or default one.
+     * The filter/search/status/pagination/sort state from the current
+     * request. Localized into JS too, so a bulk AJAX action can recompute
+     * counts against this exact view instead of a stale or default one.
      *
      * @return array{s: string, status: string, form_id: int, date_from: string, date_to: string, per_page: int, paged: int, orderby: string, order: string}
      */
@@ -1315,8 +1618,8 @@ class EntriesPage
     }
 
     /**
-     * Validates a `Y-m-d` date filter value, discarding anything malformed
-     * rather than passing it through to `strtotime()`/query args as-is.
+     * Validates a Y-m-d date value, discarding anything malformed instead
+     * of passing it through as-is.
      */
     private function sanitize_date($raw): string
     {
@@ -1330,9 +1633,8 @@ class EntriesPage
     }
 
     /**
-     * Validates an `orderby` GET value against the columns that are
-     * actually sortable — anything else (including no value at all) falls
-     * back to the table's default reverse-chronological order.
+     * Validates orderby against the sortable columns; anything else falls
+     * back to the default reverse-chronological order.
      */
     private function sanitize_orderby($raw): string
     {
@@ -1348,17 +1650,26 @@ class EntriesPage
         return 'asc' === $value ? 'asc' : 'desc';
     }
 
+    /**
+     * Accepts a preset option or a custom admin-typed value, clamped to
+     * [1, PER_PAGE_MAX] rather than rejected outright. Only a blank or
+     * non-numeric value falls back to the default.
+     */
     private function sanitize_per_page($raw): int
     {
-        $value = (int) $raw;
+        $raw = sanitize_text_field(wp_unslash((string) $raw));
 
-        return in_array($value, self::PER_PAGE_OPTIONS, true) ? $value : self::DEFAULT_PER_PAGE;
+        if ('' === $raw || ! is_numeric($raw)) {
+            return self::DEFAULT_PER_PAGE;
+        }
+
+        return max(1, min(self::PER_PAGE_MAX, (int) $raw));
     }
 
     /**
-     * A sortable column header: a link wrapping the label plus a small
-     * up/down arrow indicator. Clicking toggles direction if this column is
-     * already the active sort, otherwise starts it ascending.
+     * A sortable column header: a link with a small up/down arrow.
+     * Clicking toggles direction if already sorted by this column,
+     * otherwise starts ascending.
      */
     private function sort_link(string $key, string $label, string $current_orderby, string $current_order): string
     {
@@ -1385,31 +1696,24 @@ class EntriesPage
     private function status_filters(): array
     {
         return [
-            ''                                => __('All', 'ifthenpay-payments-for-ninja-forms'),
-            SubmissionStore::STATUS_PAID      => __('Paid', 'ifthenpay-payments-for-ninja-forms'),
-            SubmissionStore::STATUS_PENDING   => __('Pending', 'ifthenpay-payments-for-ninja-forms'),
-            SubmissionStore::STATUS_FAILED    => __('Failed', 'ifthenpay-payments-for-ninja-forms'),
-            SubmissionStore::STATUS_CANCELLED => __('Cancelled', 'ifthenpay-payments-for-ninja-forms'),
-            SubmissionStore::STATUS_EXPIRED   => __('Expired', 'ifthenpay-payments-for-ninja-forms'),
+            ''                              => __('All', 'ifthenpay-payments-for-ninja-forms'),
+            SubmissionStore::STATUS_PAID    => __('Paid', 'ifthenpay-payments-for-ninja-forms'),
+            SubmissionStore::STATUS_PENDING => __('Pending', 'ifthenpay-payments-for-ninja-forms'),
+            // Cancelled entries show under "Failed" instead of their own tab
+            // — see `SubmissionStore::build_where()`/`status_counts()`.
+            SubmissionStore::STATUS_FAILED  => __('Failed', 'ifthenpay-payments-for-ninja-forms'),
+            SubmissionStore::STATUS_EXPIRED => __('Expired', 'ifthenpay-payments-for-ninja-forms'),
         ];
     }
 
     /**
-     * Every column the "Columns" control (`entries.js`, `bindColumnsControl()`)
-     * lets the admin reorder/hide, in their default order — matches the
-     * `data-col` attributes on the table's `<th>`/`<td>` elements one for
-     * one. The leading checkbox column is deliberately not included here:
-     * it's structural (bulk selection), not a data column, so it's always
-     * shown first and isn't part of the saved layout.
+     * Every column the "Columns" control lets the admin reorder/hide, in
+     * default order. The checkbox column isn't included — it's
+     * structural, not a data column.
      *
-     * `positionLocked` (ID, Customer) keeps a column pinned first/second —
-     * `entries.js` gives it no drag handle and refuses it as a drop target
-     * either way, at Victor's request. `visibilityLocked` (ID, Customer,
-     * Amount, Status) keeps a column always shown — its checkbox renders
-     * checked and disabled instead of interactive — since between them ID
-     * and the Amount button are the table's only two ways to open a row's
-     * details (`render_row()`), and Customer/Status are the columns an
-     * admin scanning payments needs to see at a glance.
+     * positionLocked pins ID/Customer first; visibilityLocked (ID,
+     * Customer, Amount, Status) keeps the columns an admin needs at a
+     * glance always shown.
      *
      * @return array<int, array{key: string, label: string, positionLocked: bool, visibilityLocked: bool}>
      */
@@ -1418,9 +1722,9 @@ class EntriesPage
         return [
             ['key' => 'id', 'label' => __('ID', 'ifthenpay-payments-for-ninja-forms'), 'positionLocked' => true, 'visibilityLocked' => true],
             ['key' => 'customer', 'label' => __('Customer', 'ifthenpay-payments-for-ninja-forms'), 'positionLocked' => true, 'visibilityLocked' => true],
-            ['key' => 'request_id', 'label' => __('Request ID', 'ifthenpay-payments-for-ninja-forms'), 'positionLocked' => false, 'visibilityLocked' => false],
             ['key' => 'form', 'label' => __('Form', 'ifthenpay-payments-for-ninja-forms'), 'positionLocked' => false, 'visibilityLocked' => false],
             ['key' => 'method', 'label' => __('Method', 'ifthenpay-payments-for-ninja-forms'), 'positionLocked' => false, 'visibilityLocked' => false],
+            ['key' => 'submission_id', 'label' => __('Submission ID', 'ifthenpay-payments-for-ninja-forms'), 'positionLocked' => false, 'visibilityLocked' => false],
             ['key' => 'amount', 'label' => __('Amount', 'ifthenpay-payments-for-ninja-forms'), 'positionLocked' => false, 'visibilityLocked' => true],
             ['key' => 'status', 'label' => __('Status', 'ifthenpay-payments-for-ninja-forms'), 'positionLocked' => false, 'visibilityLocked' => true],
             ['key' => 'payment_link', 'label' => __('Payment Link', 'ifthenpay-payments-for-ninja-forms'), 'positionLocked' => false, 'visibilityLocked' => false],

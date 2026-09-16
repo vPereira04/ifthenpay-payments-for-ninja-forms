@@ -14,11 +14,9 @@ if (! defined('ABSPATH')) {
 class IfthenpayPayload
 {
     /**
-     * `$method['account']` is already the complete `ENTITY|ACCOUNT` segment
-     * ifthenpay's own gateway row provided (see `Sync\GatewaySync::resolve_account()`)
-     * — Multibanco's segment, for instance, is a numeric Entidade/Subentidade
-     * pair (`"11686|000"`), never the literal string "MB". Never re-derive
-     * or re-prefix it from `$method['entity']` here.
+     * `account` already comes as the full `ENTITY|ACCOUNT` segment from
+     * ifthenpay — e.g. Multibanco's is a numeric pair like "11686|000", not
+     * the literal "MB". I use it as-is, never rebuild it from `entity`.
      *
      * @param array<int, array{entity: string, account: string}> $enabled_methods
      */

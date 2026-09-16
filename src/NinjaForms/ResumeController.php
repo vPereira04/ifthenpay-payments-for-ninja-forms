@@ -9,18 +9,12 @@ if (! defined('ABSPATH')) {
 }
 
 /**
- * Completes a halted submission once ifthenpay has confirmed payment.
+ * Completes a halted submission once ifthenpay confirms payment.
  *
- * Ninja Forms' own `nf_ajax_resume` mechanism depends on the customer's
- * browser returning while their PHP session is still alive, which cannot be
- * relied on for an offline method (Multibanco, Payshop) that may be paid
- * days later. Instead, once `WebhookController` marks a payment paid, this
- * class independently replays the form's remaining actions (Save, Email,
- * Success Message, Redirect, ...) exactly as Ninja Forms' own submission
- * controller would have, using the `$data` snapshot captured at halt time.
- *
- * @see \NF_AJAX_Controllers_Submission::process() (includes/AJAX/Controllers/Submission.php)
- *      the core action loop this mirrors.
+ * Ninja Forms' own resume mechanism needs the customer's PHP session to
+ * still be alive, which doesn't hold for an offline method like Multibanco
+ * that can get paid days later. So once payment is confirmed, I replay the
+ * form's remaining actions myself using the `$data` snapshot from halt time.
  */
 class ResumeController
 {

@@ -13,16 +13,13 @@ if (! defined('ABSPATH')) {
 }
 
 /**
- * The "Confirmation Type" tab (`admin.php?page=nf-settings&tab=ifthenpay-confirmation`)
- * — lets an admin choose what a customer sees right after checkout, per
- * outcome: for "Paid", a popup message, a WordPress page, or a custom URL to
- * redirect to; for "Pending"/"Failed"/"Cancelled", a popup message only.
+ * The "Confirmation Type" tab — lets an admin choose what a customer sees
+ * right after checkout, per outcome: for "Paid" it's a popup, a WP page, or
+ * a custom redirect URL; for the other outcomes it's a popup only.
  *
- * Registered the same way as `SettingsPage` (see that class' docblock for why
- * a Ninja Forms settings tab is a meta box saved over AJAX rather than a
- * plain settings form): its own `ninja_forms_settings_tabs` entry, its own
- * meta box on its own `nf_settings_{tab}` screen, and its own AJAX save
- * handler (`Ajax\Controller::save_confirmation_settings()`).
+ * I register and save this the same way as SettingsPage (its own tab, meta
+ * box, and AJAX save handler) since Ninja Forms settings tabs aren't plain
+ * forms.
  */
 class ConfirmationPage
 {
@@ -79,8 +76,11 @@ class ConfirmationPage
             return;
         }
 
-        wp_enqueue_style('iftp-nf-admin', IFTP_NF_URL . 'assets/css/admin.css', [], IFTP_NF_VERSION);
-        wp_enqueue_script('iftp-nf-confirmation', IFTP_NF_URL . 'assets/js/confirmation.js', [], IFTP_NF_VERSION, true);
+        $admin_css       = 'assets/css/admin.css';
+        $confirmation_js = 'assets/js/confirmation.js';
+
+        wp_enqueue_style('iftp-nf-admin', IFTP_NF_URL . $admin_css, [], (string) filemtime(IFTP_NF_PATH . $admin_css));
+        wp_enqueue_script('iftp-nf-confirmation', IFTP_NF_URL . $confirmation_js, [], (string) filemtime(IFTP_NF_PATH . $confirmation_js), true);
 
         wp_localize_script('iftp-nf-confirmation', 'iftpNfConfirmation', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
@@ -92,8 +92,8 @@ class ConfirmationPage
     }
 
     /**
-     * Renders as a meta box callback: no <div class="wrap">/<h1>, the
-     * postbox/title chrome is already provided by do_meta_boxes().
+     * I render as a meta box callback, so no wrap/h1 — do_meta_boxes()
+     * already gives us the postbox chrome.
      */
     public function render(): void
     {
@@ -267,13 +267,10 @@ class ConfirmationPage
     }
 
     /**
-     * A popup message field with two synced views (`assets/js/confirmation.js`
-     * keeps them in lockstep on every keystroke, in both directions): a
-     * "Normal" `contenteditable` view for typing the message with a small
-     * bold/italic toolbar, and a "Raw" `<textarea>` for viewing/editing the
-     * underlying HTML directly. Only the `<textarea>` — `$id`/`$name` — is
-     * the actual form field that gets submitted; the "Normal" view is what
-     * the admin edits by default, mirrored into it live.
+     * I render a popup message field with two synced views: a "Normal"
+     * contenteditable view for typing, and a "Raw" textarea for the
+     * underlying HTML. JS keeps them in sync — only the textarea is the
+     * actual field that gets submitted.
      */
     private function render_message_field(string $id, string $name, string $message, string $default): void
     {

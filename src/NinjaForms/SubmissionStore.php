@@ -10,22 +10,13 @@ if (! defined('ABSPATH')) {
 
 /**
  * Persists ifthenpay payment state independently of Ninja Forms' own PHP
- * session (which `nf_ajax_resume` relies on and which cannot be trusted to
- * survive the hours/days an offline method like Multibanco or Payshop can
- * take to actually get paid).
+ * session, which can't be trusted to survive the hours/days an offline
+ * method like Multibanco can take to get paid.
  *
- * One WP option per payment, keyed by our own reference. The option holds
- * everything needed to complete the submission later (`ResumeController`)
- * from the webhook alone, with no dependency on the customer's browser ever
- * coming back.
- *
- * `Gateway\IfthenpayGateway` reserves the real Ninja Forms submission (and
- * its numeric ID) up front, as soon as the payment link is created — not
- * only once payment is confirmed — so that ID is stable and known from the
- * start instead of being assigned later and potentially confused with a
- * separately-computed number. Every status change this store records is
- * mirrored onto that submission's post meta (`sync_submission_meta()`) so
- * anyone inspecting the submission directly sees current, accurate state.
+ * One WP option per payment, keyed by our reference — enough for
+ * `ResumeController` to finish the submission later from the webhook alone,
+ * with no dependency on the customer's browser coming back. Every status
+ * change here also gets mirrored onto the real submission's post meta.
  */
 class SubmissionStore
 {
@@ -44,9 +35,8 @@ class SubmissionStore
     ];
 
     /**
-     * Extra-value (post meta) keys kept in sync onto the real Ninja Forms
-     * submission every time this store's status changes, for anyone
-     * inspecting the submission directly — see `sync_submission_meta()`.
+     * Post meta keys I keep in sync on the real submission every time
+     * status changes, so anyone inspecting it directly sees current state.
      */
     public const META_STATUS         = 'ifthenpay_status';
     public const META_REF            = 'ifthenpay_ref';
@@ -59,28 +49,33 @@ class SubmissionStore
     private const OPTION_PREFIX = 'iftp_nf_payment_';
 
     /**
-     * `Admin\EntriesPage` re-fetches `get_all()` on every single page/filter
-     * click otherwise — a fresh full-table read every time. Short TTL is
-     * just to survive a burst of clicks; anything that changes a record
-     * (`store_pending()`, `update_status()`, `update_data()`, `delete()`)
-     * clears it immediately, so nothing here is ever stale after a write.
+     * Short-lived cache so a burst of page/filter clicks doesn't re-read the
+     * full table every time. Every write clears it immediately, so nothing
+     * here is ever stale.
      */
     private const CACHE_KEY = 'iftp_nf_payments_all';
     private const CACHE_TTL = 60;
 
     /**
-     * A record is one `wp_option` row (see class docblock) — there's no way
-     * to filter/sort/paginate those at the SQL level, so `get_all()` would
-     * otherwise have to load every single one into PHP first on every
-     * request. `query_index()` is the real fix: a small indexed table
-     * (`form_id`, `sub_id`, `amount`, `pay_method`, `status`, `is_test`,
-     * `created_at`, `updated_at`, keyed by `ref`) kept in sync alongside
-     * every write below, so `Admin\EntriesPage` can filter, sort and
-     * `LIMIT`/`OFFSET` in SQL and only ever unserialize the handful of full
-     * records it's actually about to render.
+     * Records live as `wp_option` rows, which can't be filtered/sorted in
+     * SQL — this indexed table mirrors the key fields so `query_index()` can
+     * do that work in SQL instead of loading every record into PHP.
      */
     private const INDEX_VERSION_OPTION = 'iftp_nf_payments_index_version';
     private const INDEX_VERSION = 1;
+
+    /**
+     * A manual ("+ New Payment") entry has no real Ninja Forms submission
+     * behind it, so it never belongs in the main index (which assumes a
+     * real form/submission) — it lives in its own table instead, and this
+     * sentinel is the "form_id" it's tagged with everywhere a record needs
+     * one (the Entries list's Form column/filter, mainly). Never a real WP
+     * post ID — those are always positive.
+     */
+    public const AD_HOC_FORM_ID = -1;
+
+    private const ADHOC_INDEX_VERSION_OPTION = 'iftp_nf_adhoc_payments_index_version';
+    private const ADHOC_INDEX_VERSION = 1;
 
     /**
      * @param array<string, mixed> $data The Ninja Forms `$data` array captured at
@@ -114,8 +109,95 @@ class SubmissionStore
         update_option(self::option_name($ref), $record, false);
 
         $this->sync_submission_meta($record);
-        $this->sync_index($record);
+        $this->sync_appropriate_index($record);
         $this->invalidate_all_cache();
+    }
+
+    /**
+     * From the Entries screen's "+ New Payment" popup — records a payment
+     * taken outside the normal checkout (over the phone, in person) with no
+     * real Ninja Forms submission behind it. Filed under the virtual
+     * "Ad Hoc Payments" form (`AD_HOC_FORM_ID`) in its own index table
+     * rather than the main one, since it has no `sub_id` and never will —
+     * "Edit Fields" and the Submission ID column just come up empty for it,
+     * at Victor's request.
+     *
+     * @return string|null the generated ref, or null if the index write
+     *                      failed (`$wpdb->last_error` has why) — the
+     *                      option row is rolled back rather than left
+     *                      behind as an entry the Entries list can never
+     *                      find.
+     */
+    public function create_manual(
+        string $customer_name,
+        string $customer_email,
+        float $amount,
+        string $pay_method,
+        string $status,
+        string $request_id = ''
+    ): ?string {
+        // Unlike every other write path here, this can be the very first
+        // thing that ever touches the adhoc index table on a given request
+        // (the popup's own page load doesn't guarantee `distinct_form_ids()`/
+        // `query_index()` ran first) — `sync_adhoc_index()` below silently
+        // fails if the table isn't there yet, so make sure it is.
+        $this->maybe_build_adhoc_index();
+
+        $ref = $this->generate_manual_ref();
+
+        $fields = [];
+
+        if ('' !== $customer_name) {
+            $fields[] = ['settings' => ['type' => 'firstname', 'label' => 'Name'], 'value' => $customer_name];
+        }
+
+        if ('' !== $customer_email) {
+            $fields[] = ['settings' => ['type' => 'email', 'label' => 'Email'], 'value' => $customer_email];
+        }
+
+        $record = [
+            'ref'            => $ref,
+            'form_id'        => self::AD_HOC_FORM_ID,
+            'data'           => ['fields' => $fields],
+            'amount'         => $amount,
+            'gateway_key'    => 'manual',
+            'payment_url'    => '',
+            'status'         => $status,
+            'pay_method'     => $pay_method,
+            'request_id'     => $request_id,
+            'transaction_id' => '',
+            'is_test'        => false,
+            'created_at'     => time(),
+            'updated_at'     => time(),
+        ];
+
+        update_option(self::option_name($ref), $record, false);
+
+        $this->sync_submission_meta($record);
+        $indexed = $this->sync_adhoc_index($record);
+        $this->invalidate_all_cache();
+
+        if (! $indexed) {
+            delete_option(self::option_name($ref));
+
+            return null;
+        }
+
+        return $ref;
+    }
+
+    /**
+     * `MANUAL_` keeps these visually distinct from a real gateway ref
+     * (`Gateway\IfthenpayGateway::generate_reference()`) and from a
+     * `TEST_n` preview attempt, at a glance in the ID column.
+     */
+    private function generate_manual_ref(): string
+    {
+        do {
+            $ref = 'MANUAL_' . strtoupper(wp_generate_password(8, false, false));
+        } while (null !== $this->get($ref));
+
+        return $ref;
     }
 
     /**
@@ -152,16 +234,10 @@ class SubmissionStore
     }
 
     /**
-     * Records a transaction id the moment it's received from the browser on
-     * a success return (`Ajax\FrontendController::verify_payment()`) —
-     * independent of whether `Api\Webhook\WebhookController::confirm_via_transaction_status()`
-     * (called right after this) manages to confirm the payment with it.
-     * Without this, an id that arrived but failed to confirm (e.g.
-     * ifthenpay's transaction-status API was transiently unreachable, or the
-     * payment was still a Multibanco/Payshop reference at that point) was
-     * never kept anywhere. Never touches `status` — only the genuine webhook
-     * or a successful transaction-status confirmation may do that (see
-     * `update_status()`).
+     * Saves the transaction id as soon as the browser reports it, regardless
+     * of whether confirming it against the transaction-status API actually
+     * succeeds right after — otherwise an id that arrived but failed to
+     * confirm was never kept anywhere. Never touches `status` itself.
      */
     public function record_transaction_id(string $ref, string $transaction_id): void
     {
@@ -181,15 +257,10 @@ class SubmissionStore
     }
 
     /**
-     * Persists the `$data` snapshot returned by `ResumeController` after it
-     * has run the form's remaining actions. In the rare case where
-     * `Gateway\IfthenpayGateway::reserve_submission()` never got a `sub_id`
-     * up front, `ResumeController` is what actually runs the "save" action
-     * and mints the real submission — for the first time, here. Without
-     * writing that back onto this record, the new ID would never make it
-     * into this store: `Admin\EntriesPage` would keep showing "—" for it
-     * and the submission's post meta would never get synced, even though the
-     * submission now genuinely exists.
+     * Saves the `$data` snapshot after `ResumeController` runs the form's
+     * remaining actions. In the rare case a submission wasn't reserved up
+     * front, this is where its new ID first makes it into the record —
+     * without it, the entries admin would keep showing no ID for it.
      *
      * @param array<string, mixed> $data
      */
@@ -207,14 +278,14 @@ class SubmissionStore
         update_option(self::option_name($ref), $record, false);
 
         $this->sync_submission_meta($record);
-        $this->sync_index($record);
+        $this->sync_appropriate_index($record);
         $this->invalidate_all_cache();
     }
 
     /**
-     * Once paid, the record is terminal and is never moved to any other
-     * status (Multibanco/Payshop references can still be confirmed after
-     * being reported cancelled/expired, so only "paid" ever locks the door).
+     * Once paid, I never move a record to any other status — a
+     * Multibanco/Payshop reference can still get confirmed after being
+     * reported cancelled or expired, so "paid" is the only thing that locks.
      *
      * @param array<string, mixed> $extra
      */
@@ -238,18 +309,16 @@ class SubmissionStore
         update_option(self::option_name($ref), $record, false);
 
         $this->sync_submission_meta($record);
-        $this->sync_index($record);
+        $this->sync_appropriate_index($record);
         $this->invalidate_all_cache();
 
         return true;
     }
 
     /**
-     * Explicit admin correction from the Entries screen's bulk-actions bar —
-     * unlike `update_status()` above (webhook/payment-lifecycle driven, and
-     * deliberately locked once a record reaches "paid"), this always writes
-     * the requested status, since it's a direct human override rather than
-     * an automated race against the webhook.
+     * An explicit admin override from the Entries bulk-actions bar — unlike
+     * `update_status()`, this always writes the requested status, since a
+     * human override shouldn't get blocked by the "paid is terminal" rule.
      */
     public function admin_set_status(string $ref, string $status): bool
     {
@@ -271,15 +340,15 @@ class SubmissionStore
         update_option(self::option_name($ref), $record, false);
 
         $this->sync_submission_meta($record);
-        $this->sync_index($record);
+        $this->sync_appropriate_index($record);
         $this->invalidate_all_cache();
 
         return true;
     }
 
     /**
-     * Removes this plugin's own payment-tracking record for `$ref` — never
-     * the real Ninja Forms submission itself, if one exists.
+     * I only remove this plugin's tracking record for `$ref` here — never
+     * the real Ninja Forms submission itself.
      */
     public function delete(string $ref): void
     {
@@ -287,16 +356,19 @@ class SubmissionStore
 
         delete_option(self::option_name($ref));
 
+        // I don't know which table $ref lives in without loading the
+        // (already-deleted) record, so I clear it from both — the miss on
+        // whichever one it wasn't in costs nothing.
         $wpdb->delete(self::index_table_name(), ['ref' => $ref], ['%s']);
+        $wpdb->delete(self::adhoc_index_table_name(), ['ref' => $ref], ['%s']);
 
         $this->invalidate_all_cache();
     }
 
     /**
-     * Every payment reference ever recorded, regardless of status —
-     * options are already indexed by `option_name` in the DB, so this scans
-     * that rather than maintaining a separate index that a bug (or a future
-     * change) could silently drop entries from. Used by `Cron\ExpiredPaymentsCron`.
+     * Every payment reference ever recorded. I scan `wp_options` directly by
+     * name prefix rather than maintain a separate index that could silently
+     * drop entries.
      *
      * @return array<int, string>
      */
@@ -334,8 +406,7 @@ class SubmissionStore
     }
 
     /**
-     * Every distinct form id that has ever had a payment attempt recorded —
-     * backs the "All forms" filter dropdown on the Entries screen.
+     * Backs the "All forms" filter dropdown on the Entries screen.
      *
      * @return array<int, int>
      */
@@ -344,16 +415,27 @@ class SubmissionStore
         global $wpdb;
 
         $this->maybe_build_index();
+        $this->maybe_build_adhoc_index();
 
-        $ids = $wpdb->get_col('SELECT DISTINCT form_id FROM ' . self::index_table_name() . ' ORDER BY form_id ASC');
+        $ids = array_map(
+            'intval',
+            $wpdb->get_col('SELECT DISTINCT form_id FROM ' . self::index_table_name() . ' ORDER BY form_id ASC')
+        );
 
-        return array_map('intval', $ids);
+        $has_adhoc = (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . self::adhoc_index_table_name()) > 0;
+
+        if ($has_adhoc) {
+            $ids[] = self::AD_HOC_FORM_ID;
+        }
+
+        return $ids;
     }
 
     /**
-     * Filters/sorts/paginates entirely in SQL against the index table, then
-     * only unserializes the handful of full records the current page
-     * actually needs.
+     * I filter/sort/paginate in SQL against both index tables — the main
+     * one (real Ninja Forms submissions) and the ad hoc one (manual "+ New
+     * Payment" entries) — merged via `UNION ALL`, then only unserialize the
+     * handful of full records the current page needs.
      *
      * @param array<string, mixed> $args
      * @return array{items: array<int, array<string, mixed>>, total: int, pages: int, paged: int}
@@ -363,13 +445,22 @@ class SubmissionStore
         global $wpdb;
 
         $this->maybe_build_index();
+        $this->maybe_build_adhoc_index();
 
-        $table = self::index_table_name();
-        [$where, $params] = $this->build_where($args, true);
-        $where_sql = [] === $where ? '1=1' : implode(' AND ', $where);
+        $main_table  = self::index_table_name();
+        $adhoc_table = self::adhoc_index_table_name();
 
-        $count_sql = "SELECT COUNT(*) FROM {$table} WHERE {$where_sql}";
-        $total = (int) ([] === $params ? $wpdb->get_var($count_sql) : $wpdb->get_var($wpdb->prepare($count_sql, $params)));
+        [$main_where, $main_params]   = $this->build_where_main($args, true);
+        [$adhoc_where, $adhoc_params] = $this->build_where_adhoc($args, true);
+
+        $main_where_sql  = [] === $main_where ? '1=1' : implode(' AND ', $main_where);
+        $adhoc_where_sql = [] === $adhoc_where ? '1=1' : implode(' AND ', $adhoc_where);
+
+        $count_sql = "SELECT
+            (SELECT COUNT(*) FROM {$main_table} WHERE {$main_where_sql}) +
+            (SELECT COUNT(*) FROM {$adhoc_table} WHERE {$adhoc_where_sql})";
+        $count_params = array_merge($main_params, $adhoc_params);
+        $total = (int) ([] === $count_params ? $wpdb->get_var($count_sql) : $wpdb->get_var($wpdb->prepare($count_sql, $count_params)));
 
         $per_page = max(1, (int) ($args['per_page'] ?? 20));
         $pages    = max(1, (int) ceil($total / $per_page));
@@ -377,7 +468,10 @@ class SubmissionStore
         $offset   = ($paged - 1) * $per_page;
 
         $orderby_map = [
-            'id'      => 'sub_id',
+            // Real WP post ID, for the main table — the ad hoc table has no
+            // such thing, so its branch falls back to created_at instead
+            // (still gives a stable, mostly-chronological ID-column sort).
+            'id'      => 'id_sort',
             'amount'  => 'amount',
             'status'  => 'status',
             'created' => 'created_at',
@@ -386,8 +480,13 @@ class SubmissionStore
         $orderby = $orderby_map[$args['orderby'] ?? ''] ?? 'created_at';
         $order   = 'asc' === strtolower((string) ($args['order'] ?? '')) ? 'ASC' : 'DESC';
 
-        $select_sql = "SELECT ref FROM {$table} WHERE {$where_sql} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
-        $refs = $wpdb->get_col($wpdb->prepare($select_sql, array_merge($params, [$per_page, $offset])));
+        $union_sql =
+            "SELECT ref, sub_id AS id_sort, amount, status, created_at, updated_at FROM {$main_table} WHERE {$main_where_sql} " .
+            'UNION ALL ' .
+            "SELECT ref, created_at AS id_sort, amount, status, created_at, updated_at FROM {$adhoc_table} WHERE {$adhoc_where_sql}";
+        $select_sql    = "SELECT ref FROM ({$union_sql}) AS combined ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
+        $select_params = array_merge($main_params, $adhoc_params, [$per_page, $offset]);
+        $refs          = $wpdb->get_col($wpdb->prepare($select_sql, $select_params));
 
         $items = array_values(array_filter(array_map([$this, 'get'], $refs)));
 
@@ -400,59 +499,75 @@ class SubmissionStore
     }
 
     /**
-     * Status-tab counts for the Entries screen — deliberately always ignores
-     * the `status` key of `$args` (via `build_where($args, false)`) so
-     * switching tabs never looks like entries disappeared from the other
-     * tabs' counts.
+     * Status-tab counts for the Entries screen, summed across both index
+     * tables. I ignore the `status` key of `$args` here so switching tabs
+     * never makes entries look like they disappeared from the other tabs'
+     * counts.
      *
      * @param array<string, mixed> $args
      * @return array<string, int>
      */
     public function status_counts(array $args): array
     {
-        global $wpdb;
-
-        $table = self::index_table_name();
-
-        [$where, $params] = $this->build_where($args, false);
-
-        $where_sql = [] === $where ? '1=1' : implode(' AND ', $where);
-
-        $sql = "SELECT status, COUNT(*) AS total FROM {$table} WHERE {$where_sql} GROUP BY status";
-        $rows = [] === $params ? $wpdb->get_results($sql) : $wpdb->get_results($wpdb->prepare($sql, $params));
-
         $counts = ['' => 0];
 
-        foreach ($rows as $row) {
-            $count = (int) $row->total;
-            $counts[(string) $row->status] = $count;
-            $counts[''] += $count;
+        $per_table = [
+            $this->status_counts_for_table(self::index_table_name(), $this->build_where_main($args, false)),
+            $this->status_counts_for_table(self::adhoc_index_table_name(), $this->build_where_adhoc($args, false)),
+        ];
+
+        foreach ($per_table as $table_counts) {
+            foreach ($table_counts as $status => $count) {
+                $counts[$status] = ($counts[$status] ?? 0) + $count;
+                $counts[''] += $count;
+            }
+        }
+
+        // Folded into "Failed" — see `build_where_main()`/`build_where_adhoc()`.
+        if (isset($counts[self::STATUS_CANCELLED])) {
+            $counts[self::STATUS_FAILED] = ($counts[self::STATUS_FAILED] ?? 0) + $counts[self::STATUS_CANCELLED];
+            unset($counts[self::STATUS_CANCELLED]);
         }
 
         return $counts;
     }
 
     /**
-     * Shared `WHERE` builder behind `query_index()` and `status_counts()` —
-     * the latter always passes `$include_status = false` so its counts stay
-     * independent of whichever status tab is currently active.
+     * @param array{0: array<int, string>, 1: array<int, mixed>} $where
+     * @return array<string, int>
+     */
+    private function status_counts_for_table(string $table, array $where): array
+    {
+        global $wpdb;
+
+        [$clauses, $params] = $where;
+        $where_sql = [] === $clauses ? '1=1' : implode(' AND ', $clauses);
+
+        $sql  = "SELECT status, COUNT(*) AS total FROM {$table} WHERE {$where_sql} GROUP BY status";
+        $rows = [] === $params ? $wpdb->get_results($sql) : $wpdb->get_results($wpdb->prepare($sql, $params));
+
+        $counts = [];
+
+        foreach ($rows as $row) {
+            $counts[(string) $row->status] = (int) $row->total;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Date-range + status clauses shared between the main and ad hoc index
+     * tables — both use the same `created_at`/`status` columns, only
+     * `form_id` and the free-text search clause differ per table (see
+     * `build_where_main()`/`build_where_adhoc()`).
      *
      * @param array<string, mixed> $args
      * @return array{0: array<int, string>, 1: array<int, mixed>}
      */
-    private function build_where(array $args, bool $include_status): array
+    private function build_common_where(array $args, bool $include_status): array
     {
-        global $wpdb;
-
         $where  = [];
         $params = [];
-
-        $form_id = (int) ($args['form_id'] ?? 0);
-
-        if ($form_id > 0) {
-            $where[]  = 'form_id = %d';
-            $params[] = $form_id;
-        }
 
         $date_from = (int) ($args['date_from'] ?? 0);
 
@@ -466,6 +581,52 @@ class SubmissionStore
         if ($date_to > 0) {
             $where[]  = 'created_at <= %d';
             $params[] = $date_to;
+        }
+
+        if ($include_status) {
+            $status = (string) ($args['status'] ?? '');
+
+            // The admin list no longer treats "cancelled" as its own status
+            // — it reads as "Failed" everywhere here (see `EntriesPage`) —
+            // so filtering by "failed" pulls in cancelled rows too, at
+            // Victor's request. The `cancelled` status itself still exists
+            // in the database (the webhook still writes it, and the
+            // customer-facing cancelled confirmation message still keys off
+            // it), this only affects how the admin list queries it.
+            if (self::STATUS_FAILED === $status) {
+                $where[]  = 'status IN (%s, %s)';
+                $params[] = self::STATUS_FAILED;
+                $params[] = self::STATUS_CANCELLED;
+            } elseif ('' !== $status) {
+                $where[]  = 'status = %s';
+                $params[] = $status;
+            }
+        }
+
+        return [$where, $params];
+    }
+
+    /**
+     * `WHERE` builder for the main index table (real Ninja Forms
+     * submissions) — used by `query_index()` and `status_counts()`.
+     *
+     * @param array<string, mixed> $args
+     * @return array{0: array<int, string>, 1: array<int, mixed>}
+     */
+    private function build_where_main(array $args, bool $include_status): array
+    {
+        global $wpdb;
+
+        [$where, $params] = $this->build_common_where($args, $include_status);
+
+        // A real form's WP post ID is always positive, so this also
+        // naturally excludes every main-table row when the filter is
+        // `AD_HOC_FORM_ID` (-1) — no separate branch needed for that case.
+        $form_id = (int) ($args['form_id'] ?? 0);
+
+        if (0 !== $form_id) {
+            $where[]  = 'form_id = %d';
+            $params[] = $form_id;
         }
 
         $search = (string) ($args['search'] ?? '');
@@ -492,25 +653,64 @@ class SubmissionStore
             $params  = array_merge($params, $search_params);
         }
 
-        if ($include_status) {
-            $status = (string) ($args['status'] ?? '');
+        return [$where, $params];
+    }
 
-            if ('' !== $status) {
-                $where[]  = 'status = %s';
-                $params[] = $status;
+    /**
+     * `WHERE` builder for the ad hoc index table (manual "+ New Payment"
+     * entries) — it has no `form_id` column since every row in it already
+     * *is* `AD_HOC_FORM_ID`, so filtering for any other specific form
+     * excludes the whole table instead.
+     *
+     * @param array<string, mixed> $args
+     * @return array{0: array<int, string>, 1: array<int, mixed>}
+     */
+    private function build_where_adhoc(array $args, bool $include_status): array
+    {
+        global $wpdb;
+
+        [$where, $params] = $this->build_common_where($args, $include_status);
+
+        $form_id = (int) ($args['form_id'] ?? 0);
+
+        if (0 !== $form_id && self::AD_HOC_FORM_ID !== $form_id) {
+            return [array_merge($where, ['1=0']), $params];
+        }
+
+        $search = (string) ($args['search'] ?? '');
+
+        if ('' !== $search) {
+            $search_form_ids = array_map('intval', (array) ($args['search_form_ids'] ?? []));
+
+            // The search text matched the "Ad Hoc Payments" form label
+            // itself — same as matching a real form pulls in every one of
+            // its rows via `form_id IN (...)` on the main table, this pulls
+            // in every ad hoc row regardless of its other fields.
+            if (in_array(self::AD_HOC_FORM_ID, $search_form_ids, true)) {
+                return [$where, $params];
             }
+
+            $like = '%' . $wpdb->esc_like($search) . '%';
+
+            $search_clauses = ['ref LIKE %s', 'pay_method LIKE %s', 'status LIKE %s'];
+            $search_params  = [$like, $like, $like];
+
+            if (is_numeric($search)) {
+                $search_clauses[] = 'amount = %f';
+                $search_params[]  = (float) $search;
+            }
+
+            $where[] = '(' . implode(' OR ', $search_clauses) . ')';
+            $params  = array_merge($params, $search_params);
         }
 
         return [$where, $params];
     }
 
     /**
-     * Flat `meta_key => value` map of this record's ifthenpay-tracked
-     * fields — the same set `sync_submission_meta()` writes onto the real
-     * submission's post meta, exposed here so `Api\Webhook\WebhookController::finalize_paid()`
-     * can merge them into Ninja Forms' own `$data['extra']` too, making them
-     * available as extra-value merge tags for whatever actions run after
-     * payment confirmation (Email, Success Message, ...).
+     * Flat `meta_key => value` map of this record's tracked fields — reused
+     * so the webhook can merge them into `$data['extra']` too, making them
+     * available as merge tags for actions that run after payment.
      *
      * @param array<string, mixed> $record
      * @return array<string, string>
@@ -529,10 +729,8 @@ class SubmissionStore
     }
 
     /**
-     * Mirrors current status/amount/method/etc. onto the real Ninja Forms
-     * submission's post meta, if one has already been reserved
-     * (`Gateway\IfthenpayGateway::reserve_submission()`) — a no-op until
-     * then, since there's nothing to attach meta to yet.
+     * Mirrors status/amount/method onto the real submission's post meta, if
+     * one's been reserved already — a no-op until then.
      *
      * @param array<string, mixed> $record
      */
@@ -552,20 +750,26 @@ class SubmissionStore
     }
 
     /**
-     * Keeps the index table's row for `$record['ref']` in sync — a
-     * `REPLACE INTO` keyed on the unique `ref` column, so every write above
-     * (create, status change, data update) only ever needs to call this once
-     * afterwards rather than juggling insert-vs-update itself.
+     * Keeps the index row for `$record['ref']` in sync — a `REPLACE INTO`
+     * keyed on `ref`, so callers never have to juggle insert-vs-update.
+     *
+     * Every other caller of this treats it as fire-and-forget (the option
+     * row is the source of truth; the index is just what `query_index()`
+     * searches/sorts against) — `create_manual()` is the one caller that
+     * checks the return, since a manually-created entry with no matching
+     * index row would report "created" while staying permanently invisible
+     * to the Entries list, with no error anywhere to explain why.
      *
      * @param array<string, mixed> $record
+     * @return bool false means `$wpdb->last_error` has the reason.
      */
-    private function sync_index(array $record): void
+    private function sync_index(array $record): bool
     {
         global $wpdb;
 
         $sub_id = $record['data']['actions']['save']['sub_id'] ?? null;
 
-        $wpdb->replace(
+        $result = $wpdb->replace(
             self::index_table_name(),
             [
                 'ref'        => (string) $record['ref'],
@@ -580,6 +784,60 @@ class SubmissionStore
             ],
             ['%s', '%d', '%d', '%f', '%s', '%s', '%d', '%d', '%d']
         );
+
+        return false !== $result;
+    }
+
+    /**
+     * Same contract as `sync_index()`, but for the ad hoc table — no
+     * `form_id`/`sub_id` columns, since every row in it already *is*
+     * `AD_HOC_FORM_ID` and has no real submission.
+     *
+     * @param array<string, mixed> $record
+     * @return bool false means `$wpdb->last_error` has the reason.
+     */
+    private function sync_adhoc_index(array $record): bool
+    {
+        global $wpdb;
+
+        $result = $wpdb->replace(
+            self::adhoc_index_table_name(),
+            [
+                'ref'        => (string) $record['ref'],
+                'amount'     => (float) $record['amount'],
+                'pay_method' => (string) ($record['pay_method'] ?? ''),
+                'status'     => (string) $record['status'],
+                'is_test'    => ! empty($record['is_test']) ? 1 : 0,
+                'created_at' => (int) $record['created_at'],
+                'updated_at' => (int) $record['updated_at'],
+            ],
+            ['%s', '%f', '%s', '%s', '%d', '%d', '%d']
+        );
+
+        return false !== $result;
+    }
+
+    /**
+     * Routes a status/data update to whichever index table `$record`
+     * actually belongs to — every write path except `create_manual()` (which
+     * always targets the ad hoc table directly) goes through this instead of
+     * picking a table itself.
+     *
+     * @param array<string, mixed> $record
+     */
+    private function sync_appropriate_index(array $record): bool
+    {
+        return $this->is_adhoc_record($record)
+            ? $this->sync_adhoc_index($record)
+            : $this->sync_index($record);
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     */
+    private function is_adhoc_record(array $record): bool
+    {
+        return self::AD_HOC_FORM_ID === (int) ($record['form_id'] ?? 0);
     }
 
     private function invalidate_all_cache(): void
@@ -599,11 +857,16 @@ class SubmissionStore
         return $wpdb->prefix . 'iftp_nf_payments_index';
     }
 
+    private static function adhoc_index_table_name(): string
+    {
+        global $wpdb;
+
+        return $wpdb->prefix . 'iftp_nf_adhoc_payments_index';
+    }
+
     /**
-     * Creates (or upgrades) the index table the first time it's needed,
-     * guarded by `INDEX_VERSION_OPTION` so the potentially-expensive
-     * rebuild-from-`wp_options` scan below only ever runs once per version
-     * bump rather than on every single page load.
+     * Creates (or upgrades) the index table the first time it's needed. The
+     * version guard keeps the rebuild scan from running on every page load.
      */
     public static function maybe_build_index(): void
     {
@@ -639,7 +902,7 @@ class SubmissionStore
         foreach ($store->get_all_refs() as $ref) {
             $record = $store->get($ref);
 
-            if (null !== $record) {
+            if (null !== $record && ! $store->is_adhoc_record($record)) {
                 $store->sync_index($record);
             }
         }
@@ -648,13 +911,55 @@ class SubmissionStore
     }
 
     /**
-     * Best-effort label => value list from the captured submission snapshot,
-     * skipping structural field types with nothing meaningful to show.
-     * Shared by `Admin\EntriesPage` (the entry details panel) and the
-     * customer-facing "Show Entry Data" box on the paid confirmation popup
-     * (`Admin\ConfirmationPage`, `Plugin::maybe_enqueue_return_banner()`,
-     * `Ajax\FrontendController::verify_payment()`) — one source of truth for
-     * what counts as a real, displayable submitted field.
+     * Creates (or upgrades) the ad hoc index table the first time it's
+     * needed — same version-guard idea as `maybe_build_index()`, kept as a
+     * separate table/version/guard entirely since ad hoc entries have no
+     * `form_id`/`sub_id` to speak of.
+     */
+    public static function maybe_build_adhoc_index(): void
+    {
+        if ((int) get_option(self::ADHOC_INDEX_VERSION_OPTION, 0) === self::ADHOC_INDEX_VERSION) {
+            return;
+        }
+
+        global $wpdb;
+
+        $table           = self::adhoc_index_table_name();
+        $charset_collate = $wpdb->get_charset_collate();
+
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+        dbDelta("CREATE TABLE {$table} (
+            ref VARCHAR(191) NOT NULL,
+            amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+            pay_method VARCHAR(50) NOT NULL DEFAULT '',
+            status VARCHAR(20) NOT NULL DEFAULT '',
+            is_test TINYINT(1) NOT NULL DEFAULT 0,
+            created_at BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            updated_at BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            PRIMARY KEY  (ref),
+            KEY status (status),
+            KEY created_at (created_at)
+        ) {$charset_collate};");
+
+        $store = new self();
+
+        foreach ($store->get_all_refs() as $ref) {
+            $record = $store->get($ref);
+
+            if (null !== $record && $store->is_adhoc_record($record)) {
+                $store->sync_adhoc_index($record);
+            }
+        }
+
+        update_option(self::ADHOC_INDEX_VERSION_OPTION, self::ADHOC_INDEX_VERSION, false);
+    }
+
+    /**
+     * Best-effort label => value list from the submission snapshot, skipping
+     * structural field types with nothing to show. One source of truth for
+     * what counts as a real, displayable field, shared by the admin entries
+     * panel and the customer-facing "Show Entry Data" box.
      *
      * @param array<string, mixed> $record
      * @return array<string, string>
@@ -685,13 +990,9 @@ class SubmissionStore
     }
 
     /**
-     * `submitted_fields()` above, reshaped into an ordered list of
-     * `{label, value}` pairs — what the customer-facing "Show Entry Data"
-     * box actually sends to the browser (`wp_localize_script()`/
-     * `wp_send_json_success()` both encode an associative array as a JSON
-     * object, which is harder for `assets/js/frontend.js` to iterate in a
-     * stable order than a plain list, and collapses two fields that happen
-     * to share the exact same label).
+     * Same data as `submitted_fields()`, reshaped into an ordered list of
+     * pairs — an associative array would encode as a JSON object, which
+     * loses ordering and collapses duplicate labels.
      *
      * @param array<string, mixed> $record
      * @return array<int, array{label: string, value: string}>

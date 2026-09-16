@@ -9,10 +9,9 @@ if (! defined('ABSPATH')) {
 }
 
 /**
- * Sends the "Request Activation" email for a not-yet-provisioned payment
- * method. Mandatory shape for every ifthenpay integration in this workspace
- * — see "Activation Request Flow" in `.claude/agents/wp-reverse-engineer.md`.
- * Do not redesign this; only the data plugged in changes per integration.
+ * Sends the "Request Activation" email for a not-yet-provisioned method.
+ * This shape is shared across every ifthenpay integration, so I keep it
+ * as-is here — only the data plugged in changes per integration.
  */
 final class IfthenpayEmailHelper
 {

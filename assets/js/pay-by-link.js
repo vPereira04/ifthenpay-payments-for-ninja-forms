@@ -5,20 +5,10 @@
 		return;
 	}
 
-	/**
-	 * Ninja Forms core's own submit AJAX handler
-	 * (`ninja-forms/assets/js/min/front-end.js`, `controllers/actionRedirect`)
-	 * fires `window.location = response.data.actions.redirect` synchronously
-	 * off its own `nfRadio.channel('forms')` "submit:response" event the
-	 * moment `IfthenpayGateway::process()` halts the submission with a
-	 * redirect action — but that assignment only *starts* navigation; the
-	 * browser doesn't actually leave the page until the current script
-	 * finishes running. Right after triggering that Radio event, core also
-	 * fires the plain jQuery event `nfFormSubmitResponse` on `document` with
-	 * the same response payload, which is the one documented, non-Radio hook
-	 * point available to code outside Ninja Forms core — used here instead
-	 * of touching anything under `ninja-forms/`.
-	 */
+	// Ninja Forms core sets window.location synchronously when a redirect action
+	// comes back, but that only starts navigation — the page doesn't actually
+	// leave until this script finishes. Core also fires the plain jQuery event
+	// below with the same payload, so I hook that instead of touching core itself.
 	jQuery( document ).on( 'nfFormSubmitResponse', function ( event, payload ) {
 		if ( ! payload || ! payload.response ) {
 			return;
@@ -61,12 +51,10 @@
 
 		document.body.style.overflow = 'hidden';
 
-		// The browser is expected to navigate away within moments of this
-		// showing (see the comment above) and unloading the page naturally
-		// tears this down with it. This fallback exists only so a user
-		// isn't left staring at a spinner forever in the unlikely event
-		// navigation itself never happens (e.g. an invalid/blocked redirect
-		// URL) — it never fires on the normal, successful path.
+		// The browser should navigate away moments after this shows, and
+		// unloading tears it down naturally. This timeout is just a fallback so
+		// nobody's stuck staring at a spinner if navigation never happens —
+		// it doesn't fire on the normal path.
 		window.setTimeout( function () {
 			if ( overlay.parentNode ) {
 				overlay.parentNode.removeChild( overlay );

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ifthenpay\NinjaForms;
 
+use Ifthenpay\NinjaForms\Admin\AdminFooter;
 use Ifthenpay\NinjaForms\Admin\ConfirmationPage;
 use Ifthenpay\NinjaForms\Admin\EntriesPage;
 use Ifthenpay\NinjaForms\Admin\SettingsPage;
@@ -46,6 +47,7 @@ class Plugin
         (new SettingsPage())->register();
         (new ConfirmationPage())->register();
         (new EntriesPage())->register();
+        (new AdminFooter())->register();
         (new AjaxController())->register();
         (new FrontendController())->register();
         (new WebhookController())->register();
@@ -58,9 +60,8 @@ class Plugin
     }
 
     /**
-     * Hooked at priority -5 on `ninja_forms_loaded`, so our `add_filter`
-     * call below is in place before CollectPayment's own handler on the
-     * same action (priority -1) applies the filter.
+     * I hook at priority -5 so this filter is registered before
+     * CollectPayment's own handler (priority -1) reads it.
      */
     public function register_gateway(): void
     {
@@ -72,10 +73,8 @@ class Plugin
     }
 
     /**
-     * Parses and resolves this request's return-banner context — shared by
-     * `maybe_redirect_paid_confirmation()` and `maybe_enqueue_return_banner()`
-     * so both agree on exactly the same resolved status/record for a single
-     * request instead of parsing `$_GET` and re-fetching the record twice.
+     * Shared by the two return-handling methods below so both agree on the
+     * exact same resolved status/record instead of re-parsing `$_GET` twice.
      *
      * @return array{ref: string, record: array<string, mixed>, query_status: string, status: string}|null
      */
@@ -103,18 +102,12 @@ class Plugin
     }
 
     /**
-     * Redirects straight to the configured "paid" destination (see
-     * `Admin\ConfirmationPage`) the instant a "paid" status is already
-     * resolved by the time the return page loads — before any theme output
-     * starts, so `wp_safe_redirect()` can still send a `Location` header.
-     * Hooked at `template_redirect`, earlier than
-     * `maybe_enqueue_return_banner()`'s `wp_enqueue_scripts`, for exactly
-     * that reason. A "paid" confirmation left as (or falling back to) a
-     * popup has no redirect target, so this is a no-op then — the popup
-     * takes over on `maybe_enqueue_return_banner()` as usual, and a payment
-     * that only resolves to "paid" later (after this page has already
-     * rendered) redirects instead from `assets/js/frontend.js` once its
-     * live poll catches up.
+     * Redirects to the configured "paid" destination the instant we already
+     * know the payment is paid by the time the return page loads. Hooked at
+     * `template_redirect` so it's still early enough to send headers. A
+     * popup confirmation type has no redirect target, so this is a no-op
+     * then — and a payment that resolves to "paid" later gets redirected
+     * from the frontend poll instead.
      */
     public function maybe_redirect_paid_confirmation(): void
     {
@@ -150,21 +143,16 @@ class Plugin
         wp_enqueue_style('iftp-nf-frontend', IFTP_NF_URL . 'assets/css/frontend.css', [], IFTP_NF_VERSION);
         wp_enqueue_script('iftp-nf-frontend', IFTP_NF_URL . 'assets/js/frontend.js', [], IFTP_NF_VERSION, true);
 
-        // Only ever present on a genuine success return (see
-        // `Gateway\IfthenpayGateway::build_return_url()`'s `[TRANSACTIONID]`
-        // placeholder) — handed to `assets/js/frontend.js` so it can ask
-        // `Ajax\FrontendController::verify_payment()` to resolve the payment
-        // immediately via `Api\Webhook\WebhookController::confirm_via_transaction_status()`
-        // instead of only ever waiting on the asynchronous webhook.
+        // Only present on a genuine success return — lets the frontend ask
+        // to resolve the payment right away instead of waiting on the
+        // async webhook.
         $transaction_id = IfthenpayGateway::RETURN_STATUS_SUCCESS === $query_status
             ? sanitize_text_field(wp_unslash($_GET['transaction_id'] ?? ''))
             : '';
 
-        // Only ever populated once this specific request already resolved
-        // "paid" (never speculatively) — the "Show Entry Data" checkbox
-        // (`Admin\ConfirmationPage`) is meaningless before that, and nothing
-        // about this customer's submission should reach the browser before
-        // their payment is actually confirmed.
+        // Only populated once this request has already resolved "paid" —
+        // nothing about the submission should reach the browser before
+        // payment is actually confirmed.
         $entry_data = SubmissionStore::STATUS_PAID === $status && $settings->get_show_entry_data()
             ? (new SubmissionStore())->entry_data_pairs($record)
             : [];
@@ -176,13 +164,8 @@ class Plugin
             'formId'          => (int) $record['form_id'],
             'queryStatus'     => $query_status,
             'transactionId'   => $transaction_id,
-            // Resolved once, here, from the same settings a "paid at load"
-            // request would already have been redirected by
-            // (`maybe_redirect_paid_confirmation()`) — only ever actually
-            // used by `assets/js/frontend.js` if this payment is still
-            // unresolved right now and later resolves to "paid" during its
-            // live poll, since a "paid" confirmation type change doesn't
-            // itself apply retroactively mid-poll.
+            // Only actually used if this payment is still unresolved now and
+            // later resolves to "paid" during the frontend's live poll.
             'paidRedirectUrl' => $settings->get_paid_redirect_url(),
             'entryData'       => $entry_data,
             'ajaxUrl'         => admin_url('admin-ajax.php'),
@@ -194,20 +177,14 @@ class Plugin
     }
 
     /**
-     * Enqueues a small spinner overlay on any page a Ninja Forms form is
-     * actually rendered on (detected via NF core's own `nf-front-end`
-     * script handle, so this never loads on pages without a form), so that
-     * the moment `IfthenpayGateway::process()` hands the browser a
-     * `redirect` action, the user sees feedback instead of a dead page
-     * while the browser finishes navigating to the payment link.
+     * Enqueues a small spinner overlay on any page where a form actually
+     * rendered, so the user sees feedback while the browser navigates to
+     * the payment link instead of staring at a dead page.
      *
-     * Hooked at `wp_footer` priority 1 — before core's `wp_print_footer_scripts`
-     * (priority 20) — because Ninja Forms only calls `wp_enqueue_script()` for
-     * `nf-front-end` while rendering the form itself (`Display/Render.php`),
-     * which happens earlier in the page during `the_content`/shortcode
-     * rendering, not during the `wp_enqueue_scripts` action. By the time
-     * `wp_footer` fires, that enqueue call has already happened if a form was
-     * on the page.
+     * I detect that via NF's own `nf-front-end` script handle, and hook at
+     * `wp_footer` (not `wp_enqueue_scripts`) because Ninja Forms only
+     * enqueues that handle while rendering the form itself, earlier in the
+     * page.
      */
     public function maybe_enqueue_pay_by_link_spinner(): void
     {
@@ -230,22 +207,14 @@ class Plugin
     }
 
     /**
-     * Ninja Forms' own Gutenberg block (`ninja-forms/form`) hard-codes
-     * `$preview = true` in its `render_callback` (`ninja-forms/blocks/bootstrap.php`)
-     * regardless of whether it's actually rendering in the editor or on a
-     * published page — a Ninja Forms core bug, not anything this plugin can
-     * fix from the outside. That flag makes Ninja Forms' own "Record
-     * Submission" action refuse to ever create a real submission for a form
-     * embedded this way (see `Gateway\IfthenpayGateway::process()`'s
-     * `$is_test` handling), so a form that takes payment can never actually
-     * work through this block — no matter what this plugin does.
+     * Ninja Forms' own Gutenberg block always renders as preview, a core
+     * bug that means "Record Submission" never creates a real submission
+     * through it — so a form taking payment can never work through this
+     * block, no matter what we do.
      *
-     * Rather than let a customer reach a real payment link for a submission
-     * that was never going to be recorded, this replaces the block's output
-     * outright for any form with the ifthenpay gateway selected, on every
-     * render (editor preview and live page alike, since both go through
-     * `render_block_{$name}`) — with an actionable notice for anyone who can
-     * edit the page, or nothing at all for a regular visitor.
+     * Rather than send a customer to a real payment link for a submission
+     * that was never going to be recorded, I replace the block's output
+     * with a notice for editors, or nothing for a regular visitor.
      */
     public function maybe_block_broken_gutenberg_block(string $block_content, array $block): string
     {
@@ -295,25 +264,13 @@ class Plugin
     }
 
     /**
-     * The stored record (`SubmissionStore`) only ever advances past
-     * "pending" once ifthenpay's async webhook lands
-     * (`Api\Webhook\WebhookController::handle_failure()`/`handle_success()`),
-     * which can take longer than the customer's browser takes to bounce back
-     * from ifthenpay's hosted payment page. If the browser gets here first,
-     * the record is still "pending" even though ifthenpay's own redirect
-     * already told us (via `iftp_nf_pay=error|cancel`, set by
-     * `Gateway\IfthenpayGateway::build_return_url()`) that the payment
-     * failed or was cancelled — so a still-"pending" stored status defers to
-     * that query value for what to *display* right now. Once the stored
-     * status has itself moved past "pending" (webhook beat the redirect, or
-     * this page is reloaded/revisited later), it's strictly more
-     * authoritative than a query param and wins outright.
+     * The webhook can land after the browser already bounced back, so a
+     * still-"pending" stored status defers to what the redirect itself told
+     * us for what to display right now. Once the stored status moves past
+     * "pending", it's authoritative and wins outright.
      *
-     * Public and static so `Ajax\FrontendController::verify_payment()` can
-     * apply this same fallback on every later poll tick, not only on this
-     * initial page load — otherwise a customer shown "Payment cancelled"
-     * here would see it flip back to "Payment pending" the moment the first
-     * poll tick read the still-"pending" stored status directly.
+     * Public and static so the frontend poll can apply the same fallback on
+     * every tick, not just on initial page load.
      */
     public static function resolve_display_status(string $stored_status, string $query_status): string
     {
@@ -332,13 +289,9 @@ class Plugin
     }
 
     /**
-     * Shared with `Ajax\FrontendController::verify_payment()`, so the message
-     * shown after a live poll update matches the one shown on first page
-     * load exactly, without duplicating this lookup in two places. Prefers
-     * whatever an admin configured on the "Confirmation Type" tab
-     * (`Admin\ConfirmationPage`) for paid/pending/failed/cancelled, falling
-     * back to `default_status_message()` wherever nothing was configured
-     * (including "expired", which has no configurable message at all).
+     * Shared with the frontend poll so its message always matches what's
+     * shown on first page load. Prefers the admin-configured message,
+     * falling back to the default wherever nothing's configured.
      */
     public static function status_message(string $status): string
     {
@@ -359,13 +312,8 @@ class Plugin
             case SubmissionStore::STATUS_EXPIRED:
                 return __('This payment link expired.', 'ifthenpay-payments-for-ninja-forms');
             default:
-                // Deliberately doesn't name any specific payment method (e.g.
-                // Multibanco/Payshop) — the actual method is chosen by the
-                // customer on ifthenpay's own hosted page and is never known
-                // here, at initial page load or on any later poll tick alike
-                // (see `Ajax\FrontendController::verify_payment()`), so a
-                // method-specific message here would be a guess at best and
-                // wrong for every other method.
+                // Not naming a specific method — the customer picks it on
+                // ifthenpay's hosted page, and we never know which one here.
                 return __("We're waiting for your payment to be confirmed. You don't need to do anything else — this will update automatically once it's complete.", 'ifthenpay-payments-for-ninja-forms');
         }
     }

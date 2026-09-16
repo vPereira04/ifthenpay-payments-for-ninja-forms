@@ -20,11 +20,9 @@ class IfthenpayClient
     private string $last_error = '';
 
     /**
-     * The raw reason the last `create_payment_link()`/`get_gateway_keys()`
-     * call failed (a WP_Error message, or the raw response body when
-     * ifthenpay returned something without a `RedirectUrl`). Empty when
-     * the last call succeeded. Never shown to the customer — log it or
-     * surface it to an admin only.
+     * The raw reason the last call failed — a WP_Error message, or the raw
+     * body when ifthenpay didn't return a RedirectUrl. I keep this out of
+     * customer-facing responses; it's only for logs or admins.
      */
     public function get_last_error(): string
     {
@@ -78,9 +76,8 @@ class IfthenpayClient
     /**
      * POST /gateway/pinpay/{gateway_key}
      *
-     * The response's redirect field is `RedirectUrl` (PascalCase) — confirmed
-     * against a live response: `{"PinCode":"...","PinpayUrl":"...","RedirectUrl":"https://pinpay.pt/..."}`.
-     * There is no `redirect_url` key.
+     * Heads up: the redirect field is `RedirectUrl` (PascalCase), confirmed
+     * against a live response — there's no `redirect_url`.
      *
      * @param array<string, mixed> $payload
      * @return array{RedirectUrl?: string}|false
@@ -122,12 +119,8 @@ class IfthenpayClient
     /**
      * GET /gateway/transaction/status/get?transactionId={id}
      *
-     * Looks up a single transaction by the id ifthenpay appended to a
-     * success-return URL — lets `Api\Webhook\WebhookController::confirm_via_transaction_status()`
-     * resolve a payment immediately instead of waiting on the asynchronous
-     * webhook. Returns whatever fields ifthenpay includes (`OrderId`,
-     * `Amount`, `PaymentMethod` among them) or an empty array if the request
-     * failed or the id isn't recognised.
+     * I use the id ifthenpay appends to the success-return URL so we can
+     * confirm a payment right away instead of waiting on the webhook.
      *
      * @return array<string, mixed>
      */

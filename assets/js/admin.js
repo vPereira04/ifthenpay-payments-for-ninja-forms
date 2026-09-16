@@ -120,7 +120,7 @@
 
 			radio.addEventListener( 'change', function () {
 				star.classList.remove( 'iftp-nf-star--wink' );
-				// Force reflow so the animation can replay on repeated clicks.
+				// Forcing a reflow here so the wink animation replays on repeated clicks.
 				void star.offsetWidth;
 				star.classList.add( 'iftp-nf-star--wink' );
 			} );

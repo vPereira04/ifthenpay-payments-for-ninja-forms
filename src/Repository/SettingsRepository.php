@@ -11,9 +11,8 @@ if (! defined('ABSPATH')) {
 /**
  * Reads and writes the plugin's global ifthenpay configuration.
  *
- * Ninja Forms has no per-form/per-feed concept the way Gravity Forms or
- * WPForms do, so (matching the ifthenpay-payments-for-givewp precedent) all
- * ifthenpay Gateway settings are global to the site, not per form.
+ * Ninja Forms has no per-form/per-feed concept, so all settings here are
+ * global to the site rather than per form.
  */
 class SettingsRepository
 {
@@ -69,9 +68,8 @@ class SettingsRepository
     }
 
     /**
-     * Every Gateway Key row available on this Backoffice Key (an ifthenpay
-     * account can have more than one), so the admin screen can offer a
-     * dropdown instead of assuming there's only ever one.
+     * Every Gateway Key on this Backoffice Key — an account can have more
+     * than one, so the admin screen offers a dropdown instead of assuming.
      *
      * @return array<int, string>
      */
@@ -235,11 +233,9 @@ class SettingsRepository
     }
 
     /**
-     * Whether the paid confirmation popup should also reveal the customer's
-     * submitted entry data (see `Admin\ConfirmationPage`'s "Show Entry Data"
-     * checkbox). Only meaningful for the "popup" confirmation type — a
-     * "page"/"url" redirect never shows any popup at all, entry data
-     * included.
+     * Whether the paid popup should also reveal the customer's submitted
+     * data. Only meaningful for the "popup" confirmation type — a
+     * page/url redirect never shows a popup at all.
      */
     public function get_show_entry_data(): bool
     {
@@ -252,10 +248,8 @@ class SettingsRepository
     }
 
     /**
-     * The resolved redirect target for a "paid" confirmation configured as a
-     * WordPress page or a custom URL — empty when configured as (or falling
-     * back to, e.g. an unset/deleted page) a popup, meaning the "paid" return
-     * should show the popup instead of redirecting anywhere.
+     * The redirect target for a "paid" confirmation set to a page or URL —
+     * empty means show the popup instead of redirecting.
      */
     public function get_paid_redirect_url(): string
     {
@@ -272,11 +266,9 @@ class SettingsRepository
     }
 
     /**
-     * The admin-configured popup message for one of the four confirmation
-     * statuses this plugin lets an admin customize (see `Admin\ConfirmationPage`).
-     * Empty when not yet set — callers fall back to their own default text
-     * (`Plugin::default_status_message()`), since "expired" and any other
-     * status has no configurable message at all.
+     * The admin-configured popup message for one of the four customizable
+     * statuses. Empty when not set — callers fall back to their own default,
+     * since "expired" has no configurable message at all.
      */
     public function get_confirmation_message(string $status): string
     {

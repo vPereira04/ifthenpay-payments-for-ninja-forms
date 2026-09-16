@@ -33,19 +33,11 @@ if (file_exists($iftp_nf_autoload)) {
 }
 
 /*
- * Ninja Forms fires `ninja_forms_loaded` from *inside* its own
- * `plugins_loaded` callback (registered at the default priority, 10), and
- * `NF_Actions_CollectPayment` reads the `ninja_forms_register_payment_gateways`
- * filter on that same event at priority -1. If our bootstrap also ran at the
- * default priority, whichever plugin's file loaded first would win the race
- * -  and if Ninja Forms won, our filter would never be registered in time,
- * so "ifthenpay" would silently never appear in the gateway dropdown.
- * Hooking an earlier priority here removes that race entirely: this always
- * runs, and therefore always registers our `ninja_forms_loaded` handler,
- * before Ninja Forms' own `plugins_loaded` callback can fire.
- * `class_exists('Ninja_Forms')` is still safe to check this early because
- * the class itself is defined at file-include time, before `plugins_loaded`
- * fires for any plugin.
+ * Ninja Forms fires `ninja_forms_loaded` from inside its own `plugins_loaded`
+ * callback, and reads our filter early (priority -1) on that same event. If
+ * we bootstrapped at the default priority too, load order would decide
+ * whether our filter got registered in time — so I hook earlier here to
+ * remove that race entirely.
  */
 add_action('plugins_loaded', 'iftp_nf_bootstrap', 5);
 

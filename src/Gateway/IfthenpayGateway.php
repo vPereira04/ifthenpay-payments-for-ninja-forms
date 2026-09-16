@@ -15,32 +15,23 @@ if (! defined('ABSPATH')) {
 }
 
 /**
- * The ifthenpay Gateway (Pay by Link), registered into Ninja Forms' built-in
- * "Collect Payment" action via the `ninja_forms_register_payment_gateways`
- * filter.
+ * The ifthenpay Gateway (Pay by Link), registered into Ninja Forms'
+ * "Collect Payment" action.
  *
- * All configuration (Backoffice Key, Gateway Key, methods, default method,
- * description, expiry days) is global — see `SettingsRepository` — so this
- * class declares no gateway-specific settings of its own; `$_settings` stays
- * empty and Collect Payment only gains the "ifthenpay" option in its own
- * gateway dropdown.
+ * All config is global, not per-form, so `$_settings` stays empty here —
+ * Collect Payment just gets an "ifthenpay" option in its gateway dropdown.
  */
 class IfthenpayGateway extends NF_Abstracts_PaymentGateway
 {
     public const SLUG = 'ifthenpay';
 
     /**
-     * Values written into (and later read back from) the `iftp_nf_pay`
-     * return-URL query param that ifthenpay's hosted payment page redirects
-     * the browser back to (see `build_return_url()`), consumed by
-     * `Plugin::resolve_display_status()`. Kept as named constants, shared
-     * between the writer and the reader, so the two can never silently drift
-     * apart the way bare string literals could.
+     * Values I write into (and later read back from) the `iftp_nf_pay`
+     * return-URL param. Named constants so the writer and reader can't
+     * silently drift apart.
      *
-     * Deliberately a separate vocabulary from `Api\Webhook\WebhookPayload`'s
-     * `status` values (`cancelled`/`error`), which belong to a different,
-     * ifthenpay-defined contract for the async server-to-server webhook —
-     * the two must never be conflated.
+     * Deliberately its own vocabulary — don't confuse these with the
+     * webhook's own status values, they're a different contract.
      */
     public const RETURN_STATUS_SUCCESS = 'success';
     public const RETURN_STATUS_ERROR   = 'error';
@@ -73,19 +64,10 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
      */
     public function process($action_settings, $form_id, $data)
     {
-        // The Form Builder's own "Preview" button (`NF_Display_Render::localize_preview()`)
-        // — and Ninja Forms' own Gutenberg block, which always renders this
-        // way regardless of context, a Ninja Forms core bug (see
-        // `Plugin::maybe_block_broken_ninja_forms_block()`, which stops the
-        // block from being used at all) — flags every submission
-        // `is_preview`, so Ninja Forms' own "Record Submission" action never
-        // writes a real submission for it. There's nothing for
-        // `reserve_submission()` to build a real reference from, so this
-        // skips it entirely rather than let it fail every time, and runs the
-        // payment through as an obviously-marked test instead of refusing
-        // outright: a `TEST_n` reference (`generate_test_reference()`), and
-        // `SubmissionStore::store_pending()`'s `$is_test` flag so
-        // `Admin\EntriesPage` never confuses it for a real customer payment.
+        // Preview contexts (the builder's preview button, and Ninja Forms'
+        // own Gutenberg block, which always renders as preview) never create
+        // a real submission, so I can't build a real reference for them —
+        // I run these through as an obviously-marked test instead.
         $is_test = ! empty($data['settings']['is_preview']);
 
         if (! $this->settings->is_connected() || '' === $this->settings->get_gateway_key()) {
@@ -110,10 +92,8 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
         if ($is_test) {
             $ref = $this->generate_test_reference();
         } else {
-            // Reserved before the reference is even generated (not just
-            // before the redirect, as before) so that reference can be built
-            // from the real submission ID instead of a disconnected random
-            // string — see `generate_reference()`.
+            // Reserving the submission now so I can build the reference from
+            // its real ID instead of a random string.
             $data = $this->reserve_submission((int) $form_id, $data);
             $sub_id = $data['actions']['save']['sub_id'] ?? null;
 
@@ -138,15 +118,12 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
         $result = $this->client->create_payment_link($gateway_key, $payload);
 
         if (false === $result) {
-            // Always logged, not gated behind WP_DEBUG: a failed payment start
-            // is an operational signal, not a routine debug trace, and many
-            // sites that need to see this never run with WP_DEBUG on.
+            // Logging this unconditionally — a failed payment start matters
+            // even on sites that don't run with WP_DEBUG on.
             error_log('ifthenpay Payments for Ninja Forms: create_payment_link failed - ' . $this->client->get_last_error());
 
-            // The submission above was already reserved (and, with it, its
-            // real ID spent) purely to mint this reference — undo it rather
-            // than leaving a real Ninja Forms submission behind for a
-            // payment that never actually started.
+            // The submission was only reserved to mint this reference — undo
+            // it so a payment that never started doesn't leave one behind.
             if (is_int($sub_id)) {
                 $this->delete_submission((int) $form_id, $sub_id);
             }
@@ -174,25 +151,14 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
     }
 
     /**
-     * Hands ifthenpay something to identify the payment by, and lets us look
-     * up the pending record when its webhook calls back. Built from the real
-     * Ninja Forms submission's WP post ID (`sub_id`) whenever one was
-     * reserved (see `reserve_submission()`) — at Victor's request, so
-     * `Admin\EntriesPage` and ifthenpay's own backoffice key off the same
-     * post ID used to open the submission directly (`post.php?post={sub_id}`),
-     * rather than Ninja Forms' own per-form "Submission ID" (`_seq_num`),
-     * which only means something inside Ninja Forms' own Submissions screen.
-     * Deliberate tradeoff: this makes the reference guessable (sequential),
-     * so anyone who knows the URL shape could probe another order's generic
-     * pending/paid/failed status via the return-banner query param
-     * (`Plugin::maybe_enqueue_return_banner()`) — no amount, fields, or
-     * payment method are exposed that way, and the webhook itself is
-     * authenticated by `gateway_key` + amount (`WebhookValidator`), not by
-     * the reference being secret.
+     * I use the real submission's post ID as the reference whenever one
+     * exists, so the same ID also opens the submission directly in the
+     * admin. That makes references guessable (sequential) — an acceptable
+     * tradeoff, since probing one only reveals a generic status, and the
+     * webhook itself is authenticated by gateway key + amount, not secrecy.
      *
-     * Falls back to the old random form-scoped reference only for the rare
-     * form with no "save" action attached at all, where no submission ID
-     * exists to build one from.
+     * Falls back to a random reference when there's no submission ID to
+     * build from.
      */
     private function generate_reference(int $form_id, ?int $sub_id): string
     {
@@ -204,12 +170,9 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
     }
 
     /**
-     * A `TEST_n` reference for a payment started from a context Ninja Forms
-     * itself flags `is_preview` (see `process()`) — obviously distinct from
-     * a real customer reference at a glance, both in `Admin\EntriesPage` and
-     * in ifthenpay's own backoffice. `n` is a simple incrementing counter,
-     * not tied to any real submission (there never is one for these) — just
-     * enough to tell separate test attempts apart.
+     * A `TEST_n` reference for preview/test payments — obviously distinct
+     * from a real one at a glance, wherever it shows up. `n` is just an
+     * incrementing counter to tell separate attempts apart.
      */
     private function generate_test_reference(): string
     {
@@ -221,45 +184,20 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
     }
 
     /**
-     * Creates the real Ninja Forms submission right away — instead of
-     * waiting for payment confirmation like every other action does (see
-     * `NinjaForms\ResumeController`) — so its numeric ID (the same one
-     * Ninja Forms' own Submissions screen shows) is knowable and stable
-     * before the payment link is even requested, not just if/once the
-     * payment is ever confirmed. That ID is what `generate_reference()`
-     * builds ifthenpay's own order reference from, so a failed
-     * `create_payment_link()` call must undo this reservation (see
-     * `delete_submission()`) rather than leave a real submission behind for
-     * a payment that never started. Recording the "save" action's id in
-     * `$data['processed_actions']` here is what makes `ResumeController`
-     * skip re-running it once the webhook lands; `SubmissionStore` keeps
-     * this same submission's post meta in sync on every later status
-     * change instead of Ninja Forms' own Save action doing it.
+     * I create the real submission right away, instead of waiting for
+     * payment confirmation, so its ID is stable before the payment link is
+     * even requested — `generate_reference()` builds off it, and a failed
+     * `create_payment_link()` call undoes this via `delete_submission()`.
      *
-     * In practice, Ninja Forms' own action loop (`NF_AJAX_Controllers_Submission::process()`)
-     * already runs "save" before this method ever gets a chance to: both
-     * "save" and "collectpayment" are `late`-timing actions, but "save" has
-     * priority `-1` against "collectpayment"'s `0`, and that loop sorts
-     * ascending by priority within a timing group — so by the time our
-     * gateway's own `process()` runs (as "collectpayment"), `$data` already
-     * carries `actions.save.sub_id` from that natural run. Re-running
-     * `process()` here regardless, as this method used to, created a
-     * *second* real submission for every single payment — the fix is the
-     * early return below, which only lets this method mint a submission
-     * itself in the rare case Ninja Forms' own loop didn't already.
+     * In practice Ninja Forms' own action loop already runs "save" before
+     * we get here (it sorts by priority within the same timing group), so
+     * this only actually mints a submission itself in the rare case that
+     * didn't happen — re-running "save" unconditionally used to create a
+     * duplicate submission on every payment, which is why the early return
+     * below exists.
      *
-     * Runs the "save" action's `process()` even if the form owner switched
-     * "Save Submissions" off in the builder — Victor wants ifthenpay's
-     * reference and `Admin\EntriesPage` to always key off the real Ninja
-     * Forms ID, never a disconnected random string, so a submission is
-     * always minted here regardless of that toggle. `process()` itself
-     * doesn't look at `active`, only at field/extra-value settings, so this
-     * is safe. `ResumeController` later sees this action's id already in
-     * `processed_actions` and skips it, whether or not it's active.
-     *
-     * No-op — and no ID reserved, so the reference falls back to a random
-     * one and `Admin\EntriesPage` shows "—" — only if the form has no
-     * "save" action attached at all.
+     * I run "save" even if the form owner turned "Save Submissions" off —
+     * the reference needs a real ID, not a random string.
      *
      * @param array<string, mixed> $data
      * @return array<string, mixed>
@@ -301,43 +239,30 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
             $sub_id = $data['actions']['save']['sub_id'] ?? null;
 
             if (null === $sub_id) {
-                // Logged, not silently swallowed: `process()` ran but returned
-                // no sub_id, so `generate_reference()` is about to fall back
-                // to a random reference for this attempt. The `is_preview`
-                // case is now caught earlier in `process()`, before this can
-                // even be reached — so reaching here means some other
-                // plugin/add-on's `ninja_forms_save_submission` filter
-                // returned false for this form.
+                // Logging this: "save" ran but returned no sub_id, so the
+                // reference will fall back to a random one — likely another
+                // plugin's filter rejected the save.
                 error_log(sprintf('ifthenpay Payments for Ninja Forms: "save" action on form #%d ran but produced no sub_id', $form_id));
             } else {
-                // `sub_id` (the WP post ID) is what `generate_reference()`
-                // and `Admin\EntriesPage`'s ID column key off, at Victor's
-                // request. `_seq_num` — what Ninja Forms itself calls the
-                // "Submission ID" (`Admin\Menus\Submissions`'s "#" column), a
-                // per-form sequence — is only needed as an extra detail shown
-                // in `Admin\EntriesPage`'s entry-details panel, so it's still
-                // backfilled here too. Set synchronously inside `$sub->save()`
-                // above (`NF_Database_Models_Submission::save()`), so it's
-                // already in post meta by the time we read it back here.
+                // Backfilling seq_num too — it's just an extra detail shown
+                // in the entries admin, already in post meta by now.
                 $data['actions']['save']['seq_num'] = (int) get_post_meta((int) $sub_id, '_seq_num', true);
             }
 
             return $data;
         }
 
-        // No "save" action attached to this form at all — the only case
-        // `generate_reference()`'s random fallback is meant for.
+        // No "save" action on this form at all — the only case the random
+        // reference fallback is meant for.
         error_log(sprintf('ifthenpay Payments for Ninja Forms: form #%d has no "save" action, falling back to a random reference', $form_id));
 
         return $data;
     }
 
     /**
-     * Undoes `reserve_submission()` when `create_payment_link()` fails right
-     * after it — a real Ninja Forms submission was only ever created to mint
-     * a stable ID for `generate_reference()`, so one left behind for a
-     * payment that never actually started would misleadingly show up
-     * alongside genuine attempts in Ninja Forms' own Submissions screen.
+     * Cleans up after a failed `create_payment_link()` — the submission was
+     * only created to mint a reference, so I don't want it lingering
+     * alongside genuine attempts.
      */
     private function delete_submission(int $form_id, int $sub_id): void
     {
@@ -349,27 +274,13 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
     }
 
     /**
-     * The page ifthenpay's hosted payment page redirects back to once the
-     * customer finishes (or abandons) paying. `NF_Abstracts_PaymentGateway::process()`
-     * runs as part of Ninja Forms' own `nf_ajax_submit` handler, so `$data`
-     * carries submitted field/action state but never the URL of the page the
-     * form itself was embedded on; the browser's `Referer` header for that
-     * same AJAX request is the only reliable signal available for it,
-     * captured here (via `wp_get_referer()`, which validates the host)
-     * rather than trusting `$_SERVER['HTTP_REFERER']` directly. Falls back
-     * to the site's home URL if the header is missing or fails validation
-     * (e.g. a referrer policy stripped it), matching prior behaviour.
+     * I use the `Referer` header (host-validated by `wp_get_referer()`) to
+     * find the page the form was embedded on — the AJAX submission itself
+     * never carries that URL. Falls back to the home URL if it's missing.
      *
-     * Stripped of every return/verification query param before use: the
-     * referer is the customer's *current* address bar, which — until
-     * `assets/js/frontend.js`'s `stripReturnParamsFromUrl()` has had a
-     * chance to run — can still carry either our own `iftp_nf_pay`/`ref`
-     * from a previous attempt, or ifthenpay's own hosted card-payment page
-     * decorating that same previous return with `id`/`amount`/`requestId`/
-     * `sk`/`brand`/`pan`. Left in, `build_return_url()`'s `add_query_arg()`
-     * only overwrites the two keys it sets — it would carry every leftover
-     * param forward into this attempt's return URL too, and again into
-     * every attempt after that.
+     * I strip out our own and ifthenpay's leftover query params first,
+     * since the referer can still carry them from a previous attempt and
+     * they'd otherwise keep piling up on every return URL after that.
      */
     private function resolve_return_base_url(): string
     {
@@ -383,13 +294,10 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
     }
 
     /**
-     * The success URL alone also carries a `[TRANSACTIONID]` placeholder,
-     * which ifthenpay fills in only on a genuine success return — never on
-     * error/cancel, since those never carry a transaction to look up.
-     * `Plugin::maybe_enqueue_return_banner()` reads it back and hands it to
-     * `Ajax\FrontendController::verify_payment()`, which resolves the payment
-     * immediately via `Api\Webhook\WebhookController::confirm_via_transaction_status()`
-     * instead of waiting on the asynchronous webhook.
+     * The success URL also carries a `[TRANSACTIONID]` placeholder that
+     * ifthenpay fills in — only on success, since error/cancel never have a
+     * transaction to look up. Lets us resolve the payment right away
+     * instead of waiting on the async webhook.
      */
     private function build_return_url(string $status, string $ref, string $base_url): string
     {

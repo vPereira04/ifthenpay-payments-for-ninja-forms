@@ -25,12 +25,8 @@
 		} );
 	}
 
-	/**
-	 * The Paid/Pending/Failed/Cancelled top-level tabs — deliberately its own
-	 * small pill nav (see admin.css) rather than reusing Ninja Forms' own
-	 * `.nav-tab-wrapper` styling above it, at Victor's request, so the two
-	 * navs read as distinct levels instead of a visual duplicate.
-	 */
+	// I gave these tabs their own small pill nav instead of reusing Ninja Forms'
+	// own tab styling above them, so the two navs read as distinct levels.
 	function bindTabs() {
 		var tabs = document.querySelectorAll( '.iftp-nf-confirmation-tab' );
 		var panels = document.querySelectorAll( '.iftp-nf-confirmation-panel' );
@@ -52,19 +48,10 @@
 		} );
 	}
 
-	/**
-	 * The "Confirmation Type" control is a segmented pill switch (see
-	 * admin.css's `.iftp-nf-type-switch`/`.iftp-nf-type-option`) matching the
-	 * Paid/Pending/Failed/Cancelled tabs right above it, not a plain
-	 * `<select>` — a separate class from `.iftp-nf-confirmation-tab` on
-	 * purpose (styled identically, see admin.css) so `bindTabs()`'s own
-	 * `querySelectorAll` above never picks these buttons up too.
-	 *
-	 * The actual submitted value lives in the hidden
-	 * `#iftp-nf-confirmation-paid-type` input; clicking a pill just updates
-	 * that input and which Popup/Page/URL field is shown — the other two
-	 * stay in the DOM (still present, just hidden).
-	 */
+	// This is a segmented pill switch, not a plain <select> — kept as its own
+	// class so bindTabs()'s querySelectorAll above doesn't pick these up too.
+	// Clicking a pill just updates the hidden #iftp-nf-confirmation-paid-type
+	// input and swaps which field shows; the other two stay in the DOM, hidden.
 	function bindPaidType() {
 		var hiddenInput = document.getElementById( 'iftp-nf-confirmation-paid-type' );
 		var buttons = document.querySelectorAll( '.iftp-nf-type-option' );
@@ -98,15 +85,9 @@
 		apply( hiddenInput.value );
 	}
 
-	/**
-	 * Each popup message field is two synced views over the same value: a
-	 * "Normal" `contenteditable` div (what the admin types into, with a
-	 * small bold/italic toolbar) and a "Raw" `<textarea>` showing/editing
-	 * the underlying HTML directly — only the textarea actually submits
-	 * with the form, so every edit in the Normal view is mirrored into it
-	 * immediately, and every edit in Raw is mirrored back into Normal so
-	 * switching tabs never shows stale content either way.
-	 */
+	// Each message field is two synced views of the same value — a
+	// contenteditable "Normal" editor and a raw textarea. Only the textarea
+	// submits with the form, so I mirror edits between them both ways.
 	function bindMessageEditors() {
 		document.querySelectorAll( '.iftp-nf-message-editor' ).forEach( function ( editor ) {
 			var tabs = editor.querySelectorAll( '.iftp-nf-message-tab' );
@@ -147,9 +128,8 @@
 			} );
 
 			editor.querySelectorAll( '.iftp-nf-message-format' ).forEach( function ( button ) {
-				// Without this, the button would take focus on mousedown —
-				// before its own `click` fires — collapsing whatever text
-				// selection `execCommand()` below is supposed to act on.
+				// Preventing default here so the button doesn't steal focus (and
+				// collapse the text selection) before its click runs execCommand().
 				button.addEventListener( 'mousedown', function ( event ) {
 					event.preventDefault();
 				} );

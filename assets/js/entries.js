@@ -1,11 +1,8 @@
 ( function () {
 	'use strict';
 
-	// Set by `bindColumnsControl()` once it's run, so a wholesale tbody swap
-	// elsewhere (`bindBulkActions()`, after a delete refreshes the current
-	// page) can re-apply the admin's saved column order/visibility to the
-	// freshly server-rendered rows — otherwise they'd briefly show every
-	// column in its default order until the next full page load.
+	// bindColumnsControl() fills this in once it runs, so a full tbody swap
+	// elsewhere can reapply the saved column layout to freshly rendered rows.
 	var reapplyColumnLayout = function () {};
 
 	function bindDetailsToggles() {
@@ -30,11 +27,10 @@
 		} );
 	}
 
-	// A single reusable confirm dialog (see `EntriesPage::render_confirm_modal()`)
-	// standing in for the browser's native `window.confirm()` — that OS-level
-	// popup is what made bulk actions feel like blunt "buttons" rather than
-	// part of the same smooth interface. `opts` is `{ title, message,
-	// confirmLabel, danger }`; `onConfirm` only runs if the user confirms.
+	// A reusable confirm modal standing in for window.confirm() so bulk
+	// actions feel like part of the UI rather than a jarring OS popup.
+	// opts is { title, message, confirmLabel, danger }; onConfirm only runs
+	// if confirmed.
 	function openConfirmModal( opts, onConfirm ) {
 		var modal = document.querySelector( '[data-iftp-modal]' );
 
@@ -88,15 +84,13 @@
 		document.addEventListener( 'keydown', onKeydown );
 
 		modal.hidden = false;
-		void modal.offsetWidth; // Flush the unhide before adding the class, so the open transition actually plays.
+		void modal.offsetWidth; // Flushing the unhide before adding the class so the open transition plays.
 		modal.classList.add( 'is-open' );
 		confirmBtn.focus();
 	}
 
-	// A single reusable toast (see `EntriesPage::render_toast()`) for bulk-action
-	// success/error feedback — replaces `window.alert()`, and gives the
-	// in-place ("no reload") bulk-action flow some visible confirmation
-	// instead of nothing happening at all.
+	// A reusable toast for bulk-action feedback, replacing window.alert() so
+	// the no-reload bulk-action flow gets some visible confirmation.
 	var toastHideTimer = null;
 
 	function showToast( message, type ) {
@@ -146,21 +140,12 @@
 		return svg;
 	}
 
-	// Shared portal-dropdown behaviour behind every custom-built menu on this
-	// screen (the bulk "Actions" menu, and the "All forms"/"per page" fake
-	// selects below) — appended to <body> and positioned `fixed` so none of
-	// them are clipped by `.iftp-nf-entries-card`'s `overflow: hidden`
-	// (needed elsewhere for its rounded corners), the same technique the
-	// ifthenpay-payments-for-contactform7 plugin uses for its own dropdowns.
-	//
-	// Position is computed exactly once, right when the menu opens — always
-	// anchored to the bottom of whichever trigger it belongs to — and never
-	// recalculated afterwards; earlier this instead re-measured on every
-	// `scroll`/`resize` event to "follow" the trigger, which visibly
-	// jittered (the JS-driven reposition lagging a frame behind the
-	// browser's own instant repaint of `position: fixed` content during a
-	// scroll). Simpler and steadier: leave it exactly where it opened, and
-	// just close it if the page scrolls or resizes under it.
+	// Shared dropdown behind every custom menu on this screen — portaled onto
+	// <body> and positioned fixed so none of them get clipped by the card's
+	// overflow: hidden. Position is computed once, when it opens, and never
+	// recalculated afterwards; re-measuring on every scroll/resize used to
+	// "follow" the trigger, but that visibly jittered, so I just close it
+	// instead if the page scrolls or resizes under it.
 	function createPortalDropdown( trigger, wrapEl, buildItems ) {
 		var menuEl = null;
 
@@ -169,10 +154,8 @@
 			var menuWidth = menuEl.offsetWidth;
 			var menuHeight = menuEl.offsetHeight;
 			var spaceBelow = window.innerHeight - rect.bottom;
-			// Opens below the trigger by default; flips above it when there
-			// isn't room below (e.g. the bulk bar sitting near the bottom of
-			// the viewport) but there's more room above than below — otherwise
-			// most of the menu would render off-screen under the fold.
+			// Opens below by default, flips above when there's not enough
+			// room below but more room above — otherwise it'd render off-screen.
 			var openUpward = spaceBelow < menuHeight + 6 && rect.top > spaceBelow;
 
 			menuEl.classList.toggle( 'iftp-nf-dropdown-menu--upward', openUpward );
@@ -244,16 +227,41 @@
 		};
 	}
 
-	// Replaces the native "All forms" and "entries per page" <select>s with
-	// the same custom-dropdown look as the bulk "Actions" menu — the real
-	// <select> is kept (just visually hidden) so the surrounding <form>
-	// still submits it exactly as before, and picking a fake option sets its
-	// value and fires a real `change` event, so `bindPerPagePreference()`
-	// below (which listens for that on the per-page select) keeps working
-	// unmodified.
+	// Fills an option's icon (from its data-icon, e.g. a payment method's
+	// logo or the Dinheiro cash.svg — see render_create_entry_modal()) plus
+	// its label into el, shared by the trigger's current-value display and
+	// each dropdown item so both show the same thing.
+	function fillOptionContent( el, option ) {
+		el.innerHTML = '';
+
+		var icon = option.getAttribute( 'data-icon' );
+
+		if ( icon ) {
+			var img = document.createElement( 'img' );
+			img.className = 'iftp-nf-fake-select-icon';
+			img.src = icon;
+			img.alt = '';
+			img.loading = 'lazy';
+			el.appendChild( img );
+		}
+
+		var label = document.createElement( 'span' );
+		label.textContent = option.textContent;
+		el.appendChild( label );
+	}
+
+	// Replaces the native <select> with a custom dropdown matching the bulk
+	// actions menu look. I keep the real <select> (hidden) so the form still
+	// submits normally, and fire a real change event when picking a fake
+	// option. A select marked `.iftp-nf-modal-select` (the "+ New Payment"
+	// popup's Form/Method/Status) gets its own larger, full-width variant —
+	// its own style so it doesn't get confused with the compact toolbar
+	// filter dropdowns, at Victor's request.
 	function enhanceSelect( selectEl ) {
+		var isModalSelect = selectEl.classList.contains( 'iftp-nf-modal-select' );
+
 		var wrap = document.createElement( 'div' );
-		wrap.className = 'iftp-nf-fake-select';
+		wrap.className = 'iftp-nf-fake-select' + ( isModalSelect ? ' iftp-nf-fake-select--modal' : '' );
 
 		var trigger = document.createElement( 'button' );
 		trigger.type = 'button';
@@ -273,19 +281,24 @@
 
 		function syncLabel() {
 			var option = selectEl.options[ selectEl.selectedIndex ];
-			labelEl.textContent = option ? option.textContent : '';
+
+			if ( option ) {
+				fillOptionContent( labelEl, option );
+			} else {
+				labelEl.textContent = '';
+			}
 		}
 
 		var dropdown = createPortalDropdown( trigger, wrap, function ( menuEl, close ) {
+			menuEl.classList.toggle( 'iftp-nf-dropdown-menu--modal', isModalSelect );
+
 			Array.prototype.forEach.call( selectEl.options, function ( option ) {
 				var item = document.createElement( 'button' );
 				item.type = 'button';
 				item.setAttribute( 'role', 'option' );
 				item.className = 'iftp-nf-dropdown-item' + ( option.selected ? ' is-active' : '' );
 
-				var label = document.createElement( 'span' );
-				label.textContent = option.textContent;
-				item.appendChild( label );
+				fillOptionContent( item, option );
 
 				item.addEventListener( 'click', function () {
 					close();
@@ -311,9 +324,8 @@
 		document.querySelectorAll( '[data-iftp-enhance-select]' ).forEach( enhanceSelect );
 	}
 
-	// The static glyph shown in place of a drag handle for a position-locked
-	// column in the "Columns" menu (see `bindColumnsControl()`) — signals
-	// there's nothing to grab there, rather than just leaving empty space.
+	// Lock glyph shown for a position-locked column, so it's clear there's
+	// nothing to grab instead of just empty space.
 	function buildLockIconSvg() {
 		var svg = document.createElementNS( 'http://www.w3.org/2000/svg', 'svg' );
 		svg.setAttribute( 'width', '12' );
@@ -385,11 +397,9 @@
 		return svg;
 	}
 
-	// `YYYY-MM-DD` (the exact shape `input[type="date"]` stores/submits, and
-	// what `EntriesPage::sanitize_date()` expects back) parsed as local
-	// calendar-date components rather than `new Date(value)` — the native
-	// parse treats that string as UTC midnight, which silently shifts a day
-	// in any negative-offset timezone once read back via local getters.
+	// I parse YYYY-MM-DD as local date parts instead of new Date(value) —
+	// the native parse treats it as UTC midnight, which can shift a day in
+	// negative-offset timezones.
 	function parseIsoDate( value ) {
 		var parts = ( value || '' ).split( '-' );
 
@@ -413,12 +423,9 @@
 		return !! a && !! b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 	}
 
-	// Replaces the native `input[type="date"]`'s own browser/OS calendar
-	// popup with a custom-built one matching this screen's own dropdown look
-	// (see `createPortalDropdown()`) instead of looking like a foreign
-	// widget dropped into an otherwise fully custom toolbar. The real input
-	// is kept (just visually hidden) so the surrounding filters `<form>`
-	// still submits a plain `date_from`/`date_to` value exactly as before.
+	// Swaps the native date input's browser calendar for one that matches
+	// this screen's own dropdown look. The real input stays (hidden) so the
+	// form still submits a plain date value.
 	function enhanceDateInput( inputEl ) {
 		var i18n = ( window.iftpNfEntries && window.iftpNfEntries.i18n ) || {};
 		var wrap = document.createElement( 'div' );
@@ -618,17 +625,10 @@
 		document.querySelectorAll( '[data-iftp-enhance-date]' ).forEach( enhanceDateInput );
 	}
 
-	// "Columns" control: lets the admin reorder the table's columns (drag
-	// handle) and hide the ones they don't care about (checkbox), persisted
-	// to `localStorage` (not `sessionStorage` — this is meant to stick
-	// around indefinitely on this browser, like the "entries per page"
-	// preference above) so the chosen layout survives reloads and future
-	// visits alike. Every page load re-renders the table from scratch on
-	// the server (see `EntriesPage::render()`) with the full default column
-	// set and order, so this always re-applies the saved layout client-side
-	// afterwards rather than the server needing to know about it at all —
-	// `EntriesPage::organizable_columns()` is only the source of the
-	// available keys/labels and their default order.
+	// Lets the admin reorder/hide columns, persisted to localStorage so it
+	// survives reloads and future visits. The table always re-renders with
+	// the default layout server-side, and I reapply the saved layout on top
+	// of it client-side.
 	var COLUMNS_STORAGE_KEY = 'iftpNfEntriesColumns';
 
 	function loadColumnLayout( defaultOrder ) {
@@ -644,11 +644,9 @@
 		var savedOrder = ( layout && Array.isArray( layout.order ) ) ? layout.order : [];
 		var hidden = ( layout && Array.isArray( layout.hidden ) ) ? layout.hidden : [];
 
-		// Anything saved that no longer exists (a column removed in a plugin
-		// update) is dropped, and anything new that isn't in the saved order
-		// yet (a column added in a plugin update) is appended at the end —
-		// keeps a stale saved layout from ever hiding a column entirely by
-		// omission.
+		// I drop anything saved that no longer exists and append anything new
+		// that isn't in the saved order yet, so a stale layout never hides a
+		// column by omission.
 		var order = savedOrder.filter( function ( key ) {
 			return -1 !== defaultOrder.indexOf( key );
 		} );
@@ -695,20 +693,15 @@
 			columnsByKey[ column.key ] = column;
 		} );
 
-		// The keys locked to the front of the order (ID, Customer), in their
-		// fixed relative sequence — derived from `defaultOrder` rather than
-		// hardcoded, so `EntriesPage::organizable_columns()` stays the one
-		// source of truth for which columns are locked.
+		// Keys locked to the front of the order, in their fixed sequence —
+		// derived from defaultOrder so there's one source of truth for what's locked.
 		var lockedOrderKeys = defaultOrder.filter( function ( key ) {
 			return columnsByKey[ key ].positionLocked;
 		} );
 
-		// Pins every `positionLocked` column back to its fixed front slot and
-		// drops any hidden entry for a `visibilityLocked` column — run right
-		// after loading (to self-heal a layout saved before these locks
-		// existed) and after every mutation, so drag/keyboard reordering and
-		// the checkbox handler below don't have to defend against ending up
-		// in an invalid state themselves.
+		// Pins locked columns back to their fixed slots and drops any hidden
+		// entry for a visibility-locked one, so drag/reorder and the checkbox
+		// handler never have to guard against an invalid state themselves.
 		function normalizeLayout( layout ) {
 			var rest = layout.order.filter( function ( key ) {
 				return -1 === lockedOrderKeys.indexOf( key );
@@ -728,11 +721,8 @@
 			return Array.prototype.slice.call( table.querySelectorAll( '[data-col="' + key + '"]' ) );
 		}
 
-		// Reorders every `<th>`/`<td>` sharing a `data-col` to match `order`
-		// (run once per row, and once for the header row), and toggles
-		// visibility for anything in `hidden`. Column count never changes,
-		// so the `colspan="10"` on the empty-state/details rows keeps
-		// spanning every visible column with no adjustment needed here.
+		// Reorders each row's cells to match order and toggles hidden columns.
+		// Column count never changes, so colspan elsewhere doesn't need adjusting.
 		function applyLayout( layout ) {
 			var rows = [ headRow ].concat( Array.prototype.slice.call( table.querySelectorAll( 'tbody tr.iftp-nf-entry-row' ) ) );
 
@@ -776,11 +766,9 @@
 			list.className = 'iftp-nf-columns-list';
 			menuEl.appendChild( list );
 
-			// The keyboard-driven equivalent of a drag-and-drop reorder (see
-			// the drag handle's `keydown` listener below) — moves `key` one
-			// spot in `direction` (-1 up, 1 down), then re-renders the list
-			// and refocuses the same handle so repeated Arrow presses keep
-			// working without the user's focus getting lost.
+			// Keyboard equivalent of drag-and-drop reorder — moves a column one
+			// spot up/down, then re-renders and refocuses its handle so repeated
+			// arrow presses keep working.
 			function moveColumn( key, direction ) {
 				var index = layout.order.indexOf( key );
 				var target = index + direction;
@@ -789,14 +777,9 @@
 					return;
 				}
 
-				// The target slot itself is fine to land on unless it's
-				// currently one of the locked columns pinned to the front —
-				// `normalizeLayout()` always keeps those at indexes
-				// `[0, lockedOrderKeys.length)`, so this is the only extra
-				// check needed to stop a movable column from swapping past
-				// that boundary (dragging past it is separately refused by
-				// the `dragover`/`drop` handlers below, since a locked row
-				// is never a valid drop target).
+				// The target slot is fine to land on unless it's a locked
+				// column pinned to the front — that's the only extra check
+				// needed to stop a movable column swapping past that boundary.
 				if ( columnsByKey[ layout.order[ target ] ].positionLocked ) {
 					return;
 				}
@@ -832,16 +815,10 @@
 					item.className = 'iftp-nf-column-item' + ( isHidden ? ' is-hidden' : '' );
 					item.setAttribute( 'data-col-key', key );
 
-					// Position-locked columns (ID, Customer, at Victor's
-					// request) get no drag handle at all — native drag-and-drop
-					// starts anywhere on a `draggable` element, so `draggable`
-					// itself has to stay off too, or the row could still be
-					// picked up despite having nothing to grab it by.
-					// `data-locked-position` is what the `dragover`/`drop`
-					// handlers below check to also refuse it as a drop
-					// *target* — otherwise a movable column could still be
-					// dropped onto/past it even though it can't be dragged
-					// itself.
+					// Locked columns get no drag handle, and draggable has to be
+					// off too, or the row could still be picked up with nothing
+					// to grab it by. data-locked-position also marks it as an
+					// invalid drop target below.
 					if ( col.positionLocked ) {
 						item.draggable = false;
 						item.setAttribute( 'data-locked-position', 'true' );
@@ -855,12 +832,9 @@
 					} else {
 						item.draggable = true;
 
-						// A real, focusable button rather than just a
-						// decorative drag handle — native HTML5 drag-and-drop
-						// (below) has no keyboard equivalent at all, so
-						// without this the reorder half of this control would
-						// be entirely mouse-only. ArrowUp/ArrowDown move the
-						// column while this is focused.
+						// Native drag-and-drop has no keyboard equivalent, so I
+						// give this handle a real focusable button — arrow keys
+						// move the column while it's focused.
 						var handleLabel = ( i18n.columnsDragLabel || 'Drag to reorder %s' ).replace( '%s', label );
 						var handle = document.createElement( 'button' );
 						handle.type = 'button';
@@ -889,9 +863,7 @@
 					checkbox.type = 'checkbox';
 
 					if ( col.visibilityLocked ) {
-						// Always shown, not just defaulted to checked — ID,
-						// Customer, Amount and Status stay visible because
-						// between them ID/Amount are the table's only two
+						// These stay visible always — ID/Amount are the only
 						// ways to open a row's details, and Customer/Status
 						// are what an admin scans the table for at a glance.
 						checkbox.checked = true;
@@ -959,10 +931,8 @@
 			list.addEventListener( 'dragover', function ( event ) {
 				var item = event.target.closest( '.iftp-nf-column-item' );
 
-				// A locked row is never a valid drop target — without this,
-				// a movable column could still be dropped onto/past ID or
-				// Customer even though neither of those can be dragged
-				// itself (see `renderList()`), displacing them anyway.
+				// A locked row can't be a drop target either, or a movable
+				// column could still land on/past it.
 				if ( ! item || ! draggingKey || item.getAttribute( 'data-col-key' ) === draggingKey || item.hasAttribute( 'data-locked-position' ) ) {
 					return;
 				}
@@ -1029,32 +999,19 @@
 		trigger.addEventListener( 'click', dropdown.toggle );
 	}
 
-	// Bulk select + actions. A checkbox per row plus a "select all" in the
-	// header drive a bulk-actions bar (hidden until something is checked)
-	// sitting below the table. Its "Actions" button opens a custom-built
-	// dropdown menu — not a native <select> — portaled onto <body> and
-	// positioned from the trigger's own bounding box so it's never clipped
-	// by the card's `overflow: hidden` (needed for its rounded corners);
-	// same technique the ifthenpay-payments-for-contactform7 plugin uses
-	// for its own bulk-actions dropdown.
+	// Bulk select + actions bar. Its "Actions" button opens a custom dropdown
+	// portaled onto <body>, same trick as the other custom dropdowns here, so
+	// it isn't clipped by the card's overflow: hidden.
 	//
-	// Deleting only clears this plugin's own payment-tracking record for
-	// each selected entry (see `SubmissionStore::delete()`) — never the
-	// real Ninja Forms submission — and fades/collapses the row out
-	// instead of a full page reload. A status change updates in place too:
-	// the row's status badge crossfades to the new value, and — since a
-	// status change can move an entry in or out of the currently filtered
-	// status tab — a row that no longer matches the active tab fades/
-	// collapses out exactly like a delete would. The server posts back
-	// freshly recomputed status-tab counts and footer total (against the
-	// same filtered/searched view, see `iftpNfEntries.currentFilters`), so
-	// those patch in too, without ever reloading the page.
-	// Selection persists across pagination (and across full page reloads,
-	// since every "page" is a normal server-rendered navigation, not an
-	// SPA route) via sessionStorage — select 5 rows on page 1, jump to
-	// page 200, select 3 more, and a bulk action still applies to all 8.
-	// sessionStorage (not localStorage) so the selection only lives for
-	// this browser tab's working session, not indefinitely across visits.
+	// Deleting only clears our own payment-tracking record, never the real
+	// Ninja Forms submission, and animates the row out instead of reloading.
+	// A status change crossfades the badge in place, and — since it can move
+	// an entry out of the current filter tab — fades the row out too if it no
+	// longer matches. The server sends back fresh counts/totals to patch in.
+	//
+	// Selection persists across pagination via sessionStorage (not
+	// localStorage) so it survives page navigation but not indefinitely
+	// across visits.
 	var SELECTION_STORAGE_KEY = 'iftpNfEntriesSelection';
 
 	function loadSelection() {
@@ -1133,9 +1090,8 @@
 			return Array.prototype.slice.call( body.querySelectorAll( '[data-iftp-row-check]' ) );
 		}
 
-		// Only the refs also present in the current page's DOM — used to
-		// drive visible UI (row removal, badge swaps); the rest of a bulk
-		// action's targets simply aren't rendered on this page.
+		// Only the refs actually rendered on this page — the rest of a bulk
+		// action's targets just aren't in the DOM here.
 		function checkboxesForRefs( refs ) {
 			var refSet = new window.Set( refs );
 
@@ -1177,10 +1133,8 @@
 			selectAll.indeterminate = visibleSelected.length > 0 && visibleSelected.length < all.length;
 		}
 
-		// "Select all" only ever covers the rows on the current page — the
-		// persisted selection can span many pages, and there's no
-		// affordance here (nor did the ask call for one) to select every
-		// entry across the whole filtered result set at once.
+		// "Select all" only covers the current page — there's no way here to
+		// select every entry across the whole filtered result at once.
 		selectAll.addEventListener( 'change', function () {
 			rowCheckboxes().forEach( function ( box ) {
 				if ( selectAll.checked ) {
@@ -1287,22 +1241,17 @@
 			window.setTimeout( onDone, ROW_REMOVE_DURATION + 20 );
 		}
 
-		// Once a bulk action has actually been applied to every selected
-		// ref — including the ones sitting on other pages, never touched
-		// here — the whole persisted selection is done with, so it's
-		// cleared outright rather than just the current page's checkboxes.
+		// Once a bulk action's applied to every selected ref — including ones
+		// on other pages — the whole persisted selection is done, so I clear
+		// it outright.
 		function clearSelectionAfterAction() {
 			selection.clear();
 			persistSelection( selection );
 			refreshBulkBar();
 		}
 
-		// Swaps in the current page's rows/pagination/counts/total exactly
-		// as `ajax_delete_entries()` just recomputed them — refilling the
-		// page with whatever shifted up to replace the deleted rows (or, if
-		// the current page no longer exists, showing the new last page's
-		// rows instead — the server already clamped `paged` for that) —
-		// instead of leaving the page short until the next navigation.
+		// Swaps in the freshly rendered rows/pagination/counts the server just
+		// recomputed, so the page doesn't stay short until the next navigation.
 		function applyFreshEntries( data ) {
 			if ( 'string' === typeof data.rowsHtml ) {
 				body.innerHTML = data.rowsHtml;
@@ -1401,6 +1350,8 @@
 				formData.append( 'form_id', filters.form_id || 0 );
 				formData.append( 'date_from', filters.date_from || '' );
 				formData.append( 'date_to', filters.date_to || '' );
+				formData.append( 'per_page', filters.per_page || '' );
+				formData.append( 'paged', filters.paged || 1 );
 				refs.forEach( function ( ref ) {
 					formData.append( 'refs[]', ref );
 				} );
@@ -1470,26 +1421,37 @@
 		refreshBulkBar();
 
 		bulkTrigger.addEventListener( 'click', dropdown.toggle );
+
+		// Per-row "Delete" (the ID row action) — same confirm modal and
+		// AJAX round-trip as the bulk action, just scoped to this one ref
+		// regardless of what's currently selected.
+		body.addEventListener( 'click', function ( event ) {
+			var trigger = event.target.closest( '[data-iftp-row-delete]' );
+
+			if ( ! trigger || busy ) {
+				return;
+			}
+
+			runDelete( [ trigger.getAttribute( 'data-iftp-row-delete' ) ] );
+		} );
 	}
 
-	// Remembers the last "entries per page" choice in localStorage so it
-	// carries over the next time this screen is opened fresh (e.g. from the
-	// admin menu, with no `per_page` in the URL yet) instead of always
-	// resetting back to the 20-per-page default.
+	// Remembers the last "entries per page" choice so it carries over next
+	// time this screen opens fresh, instead of resetting to the 20-per-page default.
 	var PER_PAGE_STORAGE_KEY = 'iftpNfEntriesPerPage';
 
 	function bindPerPagePreference() {
 		var select = document.getElementById( 'iftp-nf-per-page' );
+		var customInput = document.getElementById( 'iftp-nf-per-page-custom' );
 		var form = select ? select.closest( 'form' ) : null;
 
 		if ( ! select || ! form ) {
 			return;
 		}
 
-		// `requestSubmit()` (unlike `.submit()`) fires a real `submit` event,
-		// which `bindTableLoadingSpinner()` listens for — but it's absent on
-		// pre-2022 Safari, so this falls back to a plain `.submit()` there
-		// (which still submits the form, just without the spinner).
+		// requestSubmit() fires a real submit event (which the loading
+		// spinner listens for) — falling back to .submit() on pre-2022
+		// Safari, just without the spinner.
 		function submitForm() {
 			if ( form.requestSubmit ) {
 				form.requestSubmit();
@@ -1509,18 +1471,61 @@
 				stored = null;
 			}
 
-			var hasOption = stored && Array.prototype.some.call( select.options, function ( option ) {
-				return option.value === stored;
-			} );
+			var storedNum = stored ? parseInt( stored, 10 ) : NaN;
 
-			if ( hasOption && stored !== select.value ) {
-				select.value = stored;
-				submitForm();
-				return;
+			if ( ! isNaN( storedNum ) && storedNum > 0 ) {
+				var isPreset = Array.prototype.some.call( select.options, function ( option ) {
+					return option.value === String( storedNum );
+				} );
+
+				if ( isPreset ) {
+					select.value = String( storedNum );
+				} else if ( customInput ) {
+					// No preset option matches this stored value (it was a typed
+					// custom number), so I hand it to customInput instead of
+					// forcing it onto the select.
+					select.value = 'custom';
+					select.disabled = true;
+					customInput.hidden = false;
+					customInput.disabled = false;
+					customInput.value = String( storedNum );
+				} else {
+					stored = null;
+				}
+
+				if ( stored ) {
+					submitForm();
+					return;
+				}
 			}
 		}
 
+		// One listener instead of splitting the mode-toggle and persist+submit
+		// across two handlers, so they can't run out of order — submitForm()
+		// needs the field's enabled/hidden state settled first.
 		select.addEventListener( 'change', function () {
+			// "Custom…" isn't a real value — picking it just reveals
+			// customInput, which persists/submits once a number is typed.
+			if ( 'custom' === select.value ) {
+				select.disabled = true;
+
+				if ( customInput ) {
+					customInput.hidden = false;
+					customInput.disabled = false;
+					customInput.focus();
+					customInput.select();
+				}
+
+				return;
+			}
+
+			select.disabled = false;
+
+			if ( customInput ) {
+				customInput.hidden = true;
+				customInput.disabled = true;
+			}
+
 			try {
 				window.localStorage.setItem( PER_PAGE_STORAGE_KEY, select.value );
 			} catch ( e ) {
@@ -1531,16 +1536,59 @@
 		} );
 	}
 
-	// Filtering/sorting/paging on this screen is a real server-rendered
-	// `GET` navigation, not an in-page fetch (see `EntriesPage::render()`),
-	// so nothing here otherwise tells the admin their click did anything
-	// until the new page finishes loading — on a slow request the table
-	// just sits there looking identical to before. This covers it with a
-	// spinner overlay (`EntriesPage::render()`'s `[data-iftp-table-loading]`)
-	// the instant a filter/sort/page action is triggered. `form.submit()`
-	// calls elsewhere (`bindPerPagePreference()`) are `requestSubmit()`
-	// instead specifically so they also fire the `submit` event this relies
-	// on — plain `.submit()` bypasses it entirely.
+	// Applies a typed "Custom…" value — the select hands off to this input,
+	// so this just needs to clamp/persist/submit it.
+	function bindPerPageCustomInput() {
+		var customInput = document.getElementById( 'iftp-nf-per-page-custom' );
+
+		if ( ! customInput ) {
+			return;
+		}
+
+		function applyCustomValue() {
+			var max = parseInt( customInput.getAttribute( 'max' ), 10 ) || 250;
+			var typed = parseInt( customInput.value, 10 );
+
+			if ( isNaN( typed ) ) {
+				return;
+			}
+
+			var value = Math.min( max, Math.max( 1, typed ) );
+			customInput.value = String( value );
+
+			try {
+				window.localStorage.setItem( PER_PAGE_STORAGE_KEY, String( value ) );
+			} catch ( e ) {
+				// Private browsing / storage disabled — the form below still submits normally.
+			}
+
+			var form = customInput.closest( 'form' );
+
+			if ( ! form ) {
+				return;
+			}
+
+			if ( form.requestSubmit ) {
+				form.requestSubmit();
+			} else {
+				form.submit();
+			}
+		}
+
+		// Enter-only, like the page-jump input — not change/blur too, which
+		// risks a second redundant submit while the first is still
+		// navigating away. Tabbing off still works via the "Filter" button.
+		customInput.addEventListener( 'keydown', function ( event ) {
+			if ( 'Enter' === event.key ) {
+				event.preventDefault();
+				applyCustomValue();
+			}
+		} );
+	}
+
+	// Filtering/sorting/paging here is a real page navigation, not a fetch,
+	// so nothing tells the admin their click did anything until it loads.
+	// This shows a spinner the instant a filter/sort/page action fires.
 	function bindTableLoadingSpinner() {
 		var overlay = document.querySelector( '[data-iftp-table-loading]' );
 
@@ -1552,7 +1600,7 @@
 			overlay.hidden = false;
 		}
 
-		document.querySelectorAll( '.iftp-nf-entries-filters, .iftp-nf-page-jump' ).forEach( function ( form ) {
+		document.querySelectorAll( '.iftp-nf-entries-filters' ).forEach( function ( form ) {
 			form.addEventListener( 'submit', showLoading );
 		} );
 
@@ -1566,11 +1614,9 @@
 			showLoading();
 		} );
 
-		// Restores the overlay to hidden if the browser serves this page back
-		// out of the back/forward cache (bfcache) — otherwise a page left
-		// mid-navigation and then returned to via the back button would show
-		// the spinner stuck on indefinitely, over a table that's actually
-		// already fully loaded.
+		// Resets the spinner if the browser restores this page from the
+		// back/forward cache — otherwise going back mid-navigation would
+		// leave it stuck on over an already-loaded table.
 		window.addEventListener( 'pageshow', function ( event ) {
 			if ( event.persisted ) {
 				overlay.hidden = true;
@@ -1578,23 +1624,82 @@
 		} );
 	}
 
-	// Peeking ninja mascot: each hover shakes him in place, then advances
-	// one step of a 4-step cycle — right, home, right, then a full exit
-	// off-screen to the left, with a smoke-bomb puff right as he vanishes.
-	// Once he's off-screen, he sits hidden for 3s, then automatically (no
-	// hover needed) a smoke cloud blooms in — a "grenade falls, cloud
-	// rises and holds, then clears" beat — and right as it starts blooming
-	// he's teleported back to his home spot, still hidden below the page
-	// edge behind the cloud; the CSS `nf-shy-ninja-rise` animation then
-	// plays him popping his head back up into view as the cloud thins, so
-	// he visibly gets up rather than just materializing once it clears.
-	// The hover cycle then resets. Left untouched for 4s, he either
-	// trembles in place (if at home) or — since he shouldn't be stranded
-	// mid-cycle no matter which step he was left at — walks himself back
-	// home first and trembles from there. `prefers-reduced-motion` zeroes
-	// out the timed waits below (the CSS side already disables the actual
-	// transitions/animations), so state still advances but without the
-	// long, motion-free pauses that would otherwise remain.
+	// The pagination's "…" is secretly a jump-to-page input. I delegate on
+	// document since the pagination markup gets replaced wholesale after a
+	// bulk action.
+	function bindPageJumpInput() {
+		document.addEventListener( 'keydown', function ( event ) {
+			if ( 'Enter' !== event.key || ! event.target.matches( '.iftp-nf-page-jump-input' ) ) {
+				return;
+			}
+
+			event.preventDefault();
+
+			var target = parseInt( event.target.value, 10 );
+			var total = parseInt( event.target.getAttribute( 'data-total' ), 10 ) || 1;
+
+			if ( isNaN( target ) || target < 1 ) {
+				return;
+			}
+
+			target = Math.min( target, total );
+
+			var baseUrl = event.target.getAttribute( 'data-base-url' ) || window.location.href;
+			var url = new URL( baseUrl, window.location.href );
+
+			if ( target > 1 ) {
+				url.searchParams.set( 'paged', target );
+			} else {
+				url.searchParams.delete( 'paged' );
+			}
+
+			var overlay = document.querySelector( '[data-iftp-table-loading]' );
+
+			if ( overlay ) {
+				overlay.hidden = false;
+			}
+
+			window.location.href = url.toString();
+		} );
+	}
+
+	// Sticky scroll-to-top button, hidden when there's little enough on the
+	// page that scrolling up isn't tedious.
+	function bindScrollToTopButton() {
+		var btn = document.getElementById( 'iftp-nf-scroll-btn' );
+
+		if ( ! btn ) {
+			return;
+		}
+
+		var perPage = parseInt( btn.getAttribute( 'data-per-page' ) || '20', 10 );
+
+		if ( perPage <= 10 ) {
+			return;
+		}
+
+		function update() {
+			if ( window.scrollY > 100 ) {
+				btn.classList.add( 'is-visible' );
+			} else {
+				btn.classList.remove( 'is-visible' );
+			}
+		}
+
+		window.addEventListener( 'scroll', update, { passive: true } );
+		window.addEventListener( 'resize', update, { passive: true } );
+		update();
+
+		btn.addEventListener( 'click', function () {
+			window.scrollTo( { top: 0, behavior: 'smooth' } );
+		} );
+	}
+
+	// Peeking ninja easter egg: each hover shakes him and advances one step
+	// of a hop-out-and-return cycle, finishing with a smoke-puff exit and,
+	// after a pause, a smoke-bloom return. Left idle mid-cycle, he walks
+	// himself back home. prefers-reduced-motion zeroes out the timed waits
+	// so state still advances, just without the pauses.
 	function bindPeekingNinja() {
 		var wrapper = document.getElementById( 'nf-peeking-ninja-wrapper' );
 
@@ -1609,11 +1714,11 @@
 		var STATE_CLASSES = [ 'nf-shy-ninja-right', 'nf-shy-ninja-exit-left' ];
 
 		var SHAKE_DURATION = prefersReducedMotion ? 0 : 400;
-		var EXIT_DURATION = prefersReducedMotion ? 0 : 600; // Time for the exit-left slide itself to finish.
-		var OFFSCREEN_WAIT = prefersReducedMotion ? 0 : 3000; // How long he then stays gone before heading back.
+		var EXIT_DURATION = prefersReducedMotion ? 0 : 600; // Time for the exit-left slide to finish.
+		var OFFSCREEN_WAIT = prefersReducedMotion ? 0 : 3000; // How long he stays gone before heading back.
 		var SMOKE_DURATION = prefersReducedMotion ? 0 : 600; // Quick vanish puff.
-		var SMOKE_COVER_DURATION = prefersReducedMotion ? 0 : 1800; // Slower "grenade falls, bloom, hold, clear" reveal.
-		var RETURN_DURATION = prefersReducedMotion ? 0 : 450; // Walking back home when left idle mid-cycle (the "right" hop).
+		var SMOKE_COVER_DURATION = prefersReducedMotion ? 0 : 3700; // Slower "bloom, hold, clear" reveal — the last wave of cluster puffs starts .7s in (see admin.css) then runs its own 2.9s.
+		var RETURN_DURATION = prefersReducedMotion ? 0 : 450; // Walking back home when left idle — same speed as hopping out, reversed.
 		var IDLE_DELAY = 4000;
 
 		var busy = false;
@@ -1628,16 +1733,14 @@
 
 		function armIdleTimer() {
 			window.clearTimeout( idleTimer );
-			wrapper.classList.remove( 'nf-shy-ninja-idle-tremble' );
 
 			idleTimer = window.setTimeout( function () {
 				if ( busy ) {
 					return;
 				}
 
-				// Left mid-cycle at the "right" hop (1st or 3rd hover) —
-				// he's not home and hovering has stopped, so walk him back
-				// instead of leaving him stranded there indefinitely.
+				// Left mid-cycle at a "right" hop with hovering stopped —
+				// walk him back instead of leaving him stranded.
 				if ( wrapper.classList.contains( 'nf-shy-ninja-right' ) ) {
 					busy = true;
 					wrapper.classList.remove( 'nf-shy-ninja-right' );
@@ -1647,30 +1750,23 @@
 						busy = false;
 						armIdleTimer();
 					}, RETURN_DURATION );
-
-					return;
-				}
-
-				if ( ! prefersReducedMotion ) {
-					wrapper.classList.add( 'nf-shy-ninja-idle-tremble' );
 				}
 			}, IDLE_DELAY );
 		}
 
-		// Runs once he's fully exited off-screen to the left: wait, then
-		// bloom the smoke-cover cloud and, right as it starts covering,
-		// teleport him back to home (instant, still hidden below the page
-		// edge behind the cloud) — the CSS `nf-shy-ninja-rise` animation
-		// (keyed off `nf-shy-ninja-smoke-cover-active`) then plays him
-		// getting back up into view as the cloud clears.
+		// Once he's off-screen: wait, then bloom the smoke cloud and
+		// teleport him back home while still hidden behind it — the CSS
+		// rise animation then plays him popping back into view as it clears.
 		function runVanishSequence() {
 			window.setTimeout( function () {
 				wrapper.classList.add( 'nf-shy-ninja-no-transition' );
+				// Adding this alongside the position snap, not after, so he
+				// stays invisible the instant he's back on-screen instead of
+				// flashing visible for a frame.
+				wrapper.classList.add( 'nf-shy-ninja-smoke-cover-active' );
 				clearStateClasses(); // `left` snaps straight back to home, no visible slide.
 				void wrapper.offsetHeight; // Flush the snap before transitions are re-enabled below.
 				wrapper.classList.remove( 'nf-shy-ninja-no-transition' );
-
-				wrapper.classList.add( 'nf-shy-ninja-smoke-cover-active' );
 
 				window.setTimeout( function () {
 					wrapper.classList.remove( 'nf-shy-ninja-smoke-cover-active' ); // Clears — he's already there.
@@ -1725,11 +1821,9 @@
 		armIdleTimer();
 	}
 
-	// Easter egg: an almost-invisible dot button slipped into the WP admin
-	// footer text (see `EntriesPage::inject_ninja_toggle()`), right where the
-	// peeking ninja rests. He starts hidden on every page load (markup-level
-	// `nf-shy-ninja-hidden` class - nothing persisted), and this just flips
-	// that class on click, so a refresh always resets him back to hidden.
+	// Hidden easter-egg toggle button in the admin footer, next to the
+	// peeking ninja. He starts hidden every load (nothing persisted) —
+	// clicking just flips the class.
 	function bindNinjaToggle() {
 		var toggle = document.getElementById( 'iftp-nf-ninja-toggle' );
 		var wrapper = document.getElementById( 'nf-peeking-ninja-wrapper' );
@@ -1745,14 +1839,178 @@
 		} );
 	}
 
+	// The "+ New Payment" popup (`render_create_entry_modal()`) — a
+	// form-based modal, unlike the generic `openConfirmModal()` above, since
+	// its fields are fixed rather than filled in per bulk action. Submits
+	// via AJAX to `iftp_nf_create_entry`, then folds the response into the
+	// table the same way a bulk action's does.
+	function bindCreateEntry() {
+		var trigger = document.querySelector( '[data-iftp-new-entry-trigger]' );
+		var modal = document.querySelector( '[data-iftp-new-entry-modal]' );
+
+		if ( ! trigger || ! modal || 'undefined' === typeof window.iftpNfEntries ) {
+			return;
+		}
+
+		var settings = window.iftpNfEntries;
+		var overlay = modal.querySelector( '[data-iftp-new-entry-overlay]' );
+		var cancelBtn = modal.querySelector( '[data-iftp-new-entry-cancel]' );
+		var form = modal.querySelector( '[data-iftp-new-entry-form]' );
+		var submitBtn = modal.querySelector( '[data-iftp-new-entry-submit]' );
+		var errorEl = modal.querySelector( '[data-iftp-new-entry-error]' );
+
+		// A missing piece here would otherwise throw on the next line
+		// (submitBtn.textContent) and silently abort the rest of this
+		// DOMContentLoaded handler — every bind*() call still queued after
+		// this one (bulk actions, columns, per-page, …) would never run.
+		// Bailing out of just this one function is safer than taking
+		// everything else down with it.
+		if ( ! overlay || ! cancelBtn || ! form || ! submitBtn || ! errorEl ) {
+			window.console && console.error( 'iftp-nf: "+ New Payment" modal is missing an expected element — not wiring it up.' );
+			return;
+		}
+
+		var submitLabel = submitBtn.textContent;
+		var busy = false;
+
+		function showError( message ) {
+			errorEl.textContent = message || '';
+			errorEl.hidden = ! message;
+		}
+
+		function open() {
+			showError( '' );
+			modal.hidden = false;
+			void modal.offsetWidth; // Flushing the unhide before adding the class so the open transition plays.
+			modal.classList.add( 'is-open' );
+
+			var firstField = form.querySelector( 'select, input' );
+
+			if ( firstField ) {
+				firstField.focus();
+			}
+		}
+
+		function close() {
+			modal.classList.remove( 'is-open' );
+
+			window.setTimeout( function () {
+				modal.hidden = true;
+				form.reset();
+				showError( '' );
+			}, 200 );
+		}
+
+		function onKeydown( event ) {
+			if ( 'Escape' === event.key && ! modal.hidden ) {
+				close();
+			}
+		}
+
+		trigger.addEventListener( 'click', open );
+		cancelBtn.addEventListener( 'click', close );
+		overlay.addEventListener( 'click', close );
+		document.addEventListener( 'keydown', onKeydown );
+
+		form.addEventListener( 'submit', function ( event ) {
+			event.preventDefault();
+
+			if ( busy ) {
+				return;
+			}
+
+			showError( '' );
+
+			busy = true;
+			submitBtn.disabled = true;
+			submitBtn.textContent = settings.i18n.newEntryCreating;
+
+			var filters = settings.currentFilters || {};
+			var formData = new window.FormData( form );
+			formData.append( 'action', 'iftp_nf_create_entry' );
+			formData.append( 'nonce', settings.nonce );
+			formData.append( 'view_s', filters.s || '' );
+			formData.append( 'view_status', filters.status || '' );
+			formData.append( 'view_form_id', filters.form_id || 0 );
+			formData.append( 'view_date_from', filters.date_from || '' );
+			formData.append( 'view_date_to', filters.date_to || '' );
+			formData.append( 'view_orderby', filters.orderby || '' );
+			formData.append( 'view_order', filters.order || '' );
+			formData.append( 'view_per_page', filters.per_page || '' );
+			formData.append( 'view_paged', filters.paged || 1 );
+
+			window.fetch( settings.ajaxUrl, {
+				method: 'POST',
+				credentials: 'same-origin',
+				body: formData
+			} )
+				.then( function ( response ) {
+					return response.json();
+				} )
+				.then( function ( json ) {
+					if ( ! json || ! json.success ) {
+						throw new Error( ( json && json.data && json.data.message ) || settings.i18n.newEntryError );
+					}
+
+					var data = json.data || {};
+					var body = document.querySelector( '[data-iftp-entries-body]' );
+
+					if ( body && 'string' === typeof data.rowsHtml ) {
+						body.innerHTML = data.rowsHtml;
+					}
+
+					var paginationWrap = document.querySelector( '[data-iftp-pagination]' );
+
+					if ( paginationWrap && 'string' === typeof data.paginationHtml ) {
+						paginationWrap.innerHTML = data.paginationHtml;
+					}
+
+					if ( data.counts ) {
+						Object.keys( data.counts ).forEach( function ( slug ) {
+							var el = document.querySelector( '[data-iftp-count="' + ( '' === slug ? '_all' : slug ) + '"]' );
+
+							if ( el ) {
+								el.textContent = data.counts[ slug ];
+							}
+						} );
+					}
+
+					var totalEl = document.querySelector( '[data-iftp-total-count]' );
+
+					if ( totalEl && 'string' === typeof data.totalLabel ) {
+						totalEl.textContent = data.totalLabel;
+					}
+
+					bindDetailsToggles();
+					reapplyColumnLayout();
+
+					close();
+					showToast( settings.i18n.newEntryToastSuccess, 'success' );
+				} )
+				.catch( function ( error ) {
+					window.console && console.error( 'iftp-nf: create entry failed —', error );
+					showError( error.message || settings.i18n.newEntryError );
+				} )
+				.finally( function () {
+					busy = false;
+					submitBtn.disabled = false;
+					submitBtn.textContent = submitLabel;
+				} );
+		} );
+	}
+
 	document.addEventListener( 'DOMContentLoaded', function () {
 		bindDetailsToggles();
 		bindCustomSelects();
 		bindCustomDateInputs();
 		bindColumnsControl();
 		bindBulkActions();
+		bindCreateEntry();
 		bindPerPagePreference();
+		bindPerPageCustomInput();
 		bindTableLoadingSpinner();
+		bindPageJumpInput();
+		bindScrollToTopButton();
 		bindPeekingNinja();
 		bindNinjaToggle();
 	} );

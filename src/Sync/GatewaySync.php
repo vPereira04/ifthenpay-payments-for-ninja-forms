@@ -13,10 +13,8 @@ if (! defined('ABSPATH')) {
 
 /**
  * Fetches Gateway Key rows and the methods catalog from ifthenpay and
- * reconciles them into `SettingsRepository`. Shared by the AJAX connect/
- * switch flows (`Ajax\Controller`) and by `Admin\SettingsPage`'s lazy
- * backfill for a connection made before the Gateway Key list or method
- * logos existed in stored settings.
+ * reconciles them into settings. Shared by the connect/switch AJAX flows
+ * and the settings page's lazy backfill for older connections.
  */
 class GatewaySync
 {
@@ -30,8 +28,8 @@ class GatewaySync
     }
 
     /**
-     * First-time connection: validates the Backoffice Key has at least one
-     * Ninja Forms Gateway Key row, stores it, and builds its methods table.
+     * First-time connection: I validate the Backoffice Key has at least one
+     * Gateway Key row, store it, and build its methods table.
      */
     public function connect(string $backoffice_key): bool
     {
@@ -53,9 +51,8 @@ class GatewaySync
 
     /**
      * Re-fetches the Gateway Key list and rebuilds the methods table for
-     * whichever key is currently selected (falling back to the first row if
-     * the stored key is no longer valid). Idempotent — safe to call on
-     * every settings-page render as well as from "Refresh".
+     * whichever key is selected, falling back to the first row if it's no
+     * longer valid. Safe to call on every settings-page render.
      */
     public function sync(): bool
     {
@@ -101,11 +98,9 @@ class GatewaySync
     }
 
     /**
-     * True when stored settings predate a fix that needed a resync: no
-     * Gateway Key list yet, or a methods entry missing its display name
-     * (the `alias` field was empty for everyone until the catalog's real
-     * field name — `Method`, not `Alias` — was confirmed against a live
-     * response; see `build_methods()`).
+     * True when stored settings predate a fix: no Gateway Key list yet, or
+     * a methods entry missing its display name (alias used to come out
+     * empty before I confirmed the catalog's real field name).
      */
     public function needs_backfill(): bool
     {
@@ -130,16 +125,9 @@ class GatewaySync
      * Merges the ifthenpay methods catalog with the accounts already
      * provisioned on this gateway row.
      *
-     * Field names confirmed against a live `/gateway/get?Type=ninjaforms`
-     * response and a live `/gateway/methods/available` response:
-     * - The catalog's display name is `Method` (e.g. "MBWAY", "VISA / MASTERCARD"),
-     *   not `Alias` — there is no `Alias` field on a methods-catalog entry.
-     * - The catalog's logo is `SmallImageUrl` (falling back to `ImageUrl`),
-     *   not `Logo` — there is no `Logo` field either.
-     * - The gateway row's per-method columns store the FULL, ready-to-use
-     *   accounts-string segment already — e.g. `CCARD` => `"CCARD | AAA-000000"`,
-     *   `Multibanco` => `"11686 | 000"` — not a bare account code. See
-     *   `resolve_account()`.
+     * I confirmed these field names against live API responses: the display
+     * name is `Method`, not `Alias`; the logo is `SmallImageUrl` (falling
+     * back to `ImageUrl`), not `Logo` — neither of those fields exists.
      *
      * @param array<string, mixed> $gateway_row
      * @return array<int, array{entity: string, alias: string, logo: string, enabled: bool, account: string, position: int}>
@@ -193,13 +181,9 @@ class GatewaySync
     }
 
     /**
-     * The gateway row's per-method column is keyed by the entity code for
-     * every method except Multibanco, whose column is literally named
-     * "Multibanco" (its value pair is the numeric Entidade/Subentidade, e.g.
-     * `"11686 | 000"`, not the literal string "MB"). The column's value is
-     * already the complete `ENTITY|ACCOUNT` accounts-string segment — just
-     * with stray spaces around the pipe — so this only normalizes that
-     * spacing and never re-derives it from our own catalog entity code.
+     * Multibanco's column is named "Multibanco", not "MB" like every other
+     * method's column matches its entity code. The value is already a
+     * complete `ENTITY|ACCOUNT` segment — I just normalize stray spacing.
      *
      * @return string The normalized `ENTITY|ACCOUNT` segment, or '' if this
      *                 method isn't provisioned on this gateway row.

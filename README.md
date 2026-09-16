@@ -8,14 +8,14 @@ Adds ifthenpay payment methods to Ninja Forms: cards, wallets, and local payment
 
 ## Table of Contents
 
-- [Description](#user-content-en-description)
-- [Key Features](#user-content-en-key-features)
-- [Requirements](#user-content-en-requirements)
-- [Installation](#user-content-en-installation)
-- [Frequently Asked Questions](#user-content-en-frequently-asked-questions)
-- [External Services](#user-content-en-external-services)
-- [Screenshots](#user-content-en-screenshots)
-- [Support](#user-content-en-support)
+- [Description](#description)
+- [Key Features](#key-features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Frequently Asked Questions](#frequently-asked-questions)
+- [External Services](#external-services)
+- [Screenshots](#screenshots)
+- [Support](#support)
 
 ### Description
 
@@ -23,8 +23,8 @@ This plugin integrates the ifthenpay payment gateway with Ninja Forms to enable 
 
 **In plain terms you get:**
 
-- One-time payments directly from Ninja Forms
-- Support for coupons and automatic total calculations
+- One-time payments directly from Ninja Forms' Collect Payment action
+- Payment amount automatically follows your form's own total (e.g. Ninja Forms Calculations)
 - Merchant backoffice (basic sales) on web + mobile
 - Secure automatic payment confirmations (no card numbers stored)
 
@@ -32,11 +32,11 @@ All settings are made in Ninja Forms and in your ifthenpay Backoffice. The plugi
 
 ### Key Features
 
-1. Full integration with Ninja Forms Lite and Pro payment flow
+1. Full integration with Ninja Forms' Collect Payment action
 2. Secure transactions
 3. Automatic payment confirmation
-4. Support for multiple payment methods (cards, wallets, transfers)
-5. Coupon and discount support via Ninja Forms
+4. Support for multiple payment methods (Multibanco, MB WAY, Payshop, Pix, Credit Card and more — whatever's enabled on your Gateway Key)
+5. Payment methods catalog synced live from your ifthenpay account, with in-admin "Request Activation" for methods not yet enabled
 6. Secure full-page redirect to ifthenpay's hosted payment page
 7. Real-time payment status in Ninja Forms entries
 8. Multi-language support (EN, ES, FR, PT)
@@ -47,16 +47,16 @@ All settings are made in Ninja Forms and in your ifthenpay Backoffice. The plugi
 - An active ifthenpay merchant account — [subscribe here](https://ifthenpay.com/aderir/) to obtain your credentials.
 - A Ninja Forms Gateway Key (request this from ifthenpay support/helpdesk).
 - The payment methods you want enabled on that Gateway Key (our helpdesk team will guide you).
-- WordPress 6.5+ and PHP 8.2+, and Ninja Forms installed and activated.
+- WordPress 6.4+ and PHP 7.4+, and Ninja Forms installed and activated.
 - HTTPS (SSL) enabled on your site.
 
 ### Installation
 
 1. **Install:** Upload the plugin zip via `Plugins → Add New → Upload`, or install from WordPress.org and Activate.
 2. **Credentials:** Ensure your ifthenpay account has an active Ninja Forms Gateway Key with the desired payment methods enabled.
-3. **Setup Part1:** Go to `Ninja Forms → Settings → Payments → ifthenpay` and enter your Backoffice Key.
-4. **Setup Part2:** After the backoffice key is connected you'll be presented with the gateway key configurations, select your gateway key of choice if you have more than one with ninja forms context, enable your favorite methods, set a default payment method, description for your payments and a expire date for your pay by links.
-4. **Form config:** `Create/Edit a form → Payments tab → Add the Ifthenpay field on your form → enable "ifthenpay | Payment Gateway"` and select a Gateway Key. Next, choose which payment methods to activate from those available in your gateway, and set your default payment method. Finally, add a payment description, which will be displayed on the ifthenpay payment page for all transactions.
+3. **Setup Part 1:** Go to `Ninja Forms → Settings → Payments` and enter your Backoffice Key.
+4. **Setup Part 2:** Once the Backoffice Key is connected you'll see your gateway key configuration — select your Gateway Key of choice if you have more than one, enable your favorite methods, set a default payment method, a description for your payments, and an expiry (in days) for your pay-by-links. These settings apply globally, to every form.
+5. **Form config:** `Edit your form → Emails & Actions tab → add (or edit) a "Collect Payment" action → set its Payment Gateway to "ifthenpay | Payment Gateway"`. The payment methods, default method, description, and expiry were already configured in Step 4 — this step only wires this specific form's Collect Payment action to ifthenpay.
 
 ### Frequently Asked Questions
 
@@ -77,7 +77,7 @@ No. The plugin does not store card numbers or full bank details. Only minimal re
 
 <details>
 <summary><strong>Which payment methods are supported?</strong></summary>
-Any ifthenpay method attached to your Gateway Key (e.g. Multibanco, MB WAY, Payshop, Credit Card, Google Pay, Apple Pay, Pix).
+Any ifthenpay method attached to your Gateway Key (e.g. Multibanco, MB WAY, Payshop, Pix, Credit Card, and more).
 </details>
 
 <details>
@@ -107,7 +107,7 @@ Yes! ifthenpay's addon for Ninja Forms accepts webhooks(callbacks).
 
 ### External Services
 
-This plugin integrates with the ifthenpay payment platform to process payments for Ninja Forms submissions. ifthenpay is a third-party service that provides secure payment processing for cards, wallets, and local bank transfers.
+This plugin integrates with the ifthenpay payment platform to process payments for Ninja Forms submissions. ifthenpay is a third-party service that provides secure payment processing for local payment methods such as Multibanco, MB WAY, Payshop, and Pix, plus Credit Card and more, depending on what's enabled on your account.
 
 - **Ninja Forms**
   - **What it is and what it is used for**: A form builder plugin used to create payment forms. This plugin extends its payment capabilities.
@@ -116,7 +116,7 @@ This plugin integrates with the ifthenpay payment platform to process payments f
   - **What it is and what it is used for**: The ifthenpay Backoffice is the merchant dashboard used to manage integrations and payment configurations. The plugin uses the ifthenpay API to generate payment links and validate transactions.
   - **What data is sent and when**:
     - During setup: Backoffice Key and Gateway Key for authentication and configuration retrieval.
-    - During payment processing: Order reference ID, amount, description, enabled payment method accounts, success/error/cancel return URLs, language, and optionally the selected payment method, customer email, customer name, and form field data.
+    - During payment processing: Order reference ID, amount, description, enabled payment method accounts, success/error/cancel return URLs, language, and optionally the selected payment method position. No customer name, email, or form field data is included in this request.
     - During webhook registration: the Gateway Key and this site's callback URL, so ifthenpay can notify the site directly when a payment resolves.
     - During payment method activation requests: when an admin requests activation of a new payment method from `Ninja Forms → Settings → Payments`, an email is sent to ifthenpay support (suporte@ifthenpay.com) containing the Backoffice Key, Gateway Key, the requested payment method, the admin's email address, site URL, site name, WordPress version, Ninja Forms version, and plugin version.
     - During callbacks: Payment status and payment method.
@@ -150,7 +150,7 @@ Below are screenshots demonstrating key features and interfaces of the plugin:
 
 ### Support
 
-For assistance use the [WordPress.org support forum](https://wordpress.org/support):
+For assistance use the [WordPress.org support forum](https://wordpress.org/support/plugin/ifthenpay-payments-for-ninja-forms/):
 
 Pre-checks:
 
@@ -161,4 +161,3 @@ Commercial helpdesk available (no direct email required): [helpdesk.ifthenpay.co
 
 - **ifthenpay support**: [suporte@ifthenpay.com](mailto:suporte@ifthenpay.com)
 - **Ninja Forms docs**: [Ninja Forms docs](https://ninjaforms.com/docs/)
-</details>

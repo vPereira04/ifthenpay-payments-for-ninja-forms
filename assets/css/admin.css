@@ -12,6 +12,41 @@
 */
 :root {
 	--iftp-nf-blue: #00609c;
+	--iftp-nf-dark-blue: #001b2d;
+	--iftp-nf-blue-tint: #f0f6fc;
+	--iftp-nf-blue-tint-strong: #e5eef7;
+	--iftp-nf-blue-hover-text: #004875;
+
+	/* Every neutral gray in this file collapses into exactly these three —
+	   light for borders/dividers/subtle fills, mid for secondary/muted/
+	   disabled text and icons, dark for primary text and dark surfaces —
+	   instead of the dozen one-off WP-gray shades this screen used to pull
+	   from, at Victor's request. */
+	--iftp-nf-gray-light: #e2e4e7;
+	--iftp-nf-gray-mid: #8c8f94;
+	--iftp-nf-gray-dark: #3c434a;
+
+	/* Entry status pills */
+	--iftp-nf-status-pending-bg: #fdf3e0;
+	--iftp-nf-status-pending-text: #96660b;
+	--iftp-nf-status-paid-bg: #e6f6ec;
+	--iftp-nf-status-paid-text: #1a7f4b;
+	--iftp-nf-status-failed-bg: #fdeaea;
+	--iftp-nf-status-failed-text: #9c2f2f;
+
+	/* Destructive actions (delete/cancel/failed) */
+	--iftp-nf-danger: #a72b2b;
+	--iftp-nf-danger-bg: #fbe1e1;
+	--iftp-nf-danger-bg-active: #f6cfcf;
+
+	/* Toast accents match WP core's own notice colors rather than the
+	   danger/success tones above, since the toast border is meant to read
+	   as a native WP notice, not a branded pill. */
+	--iftp-nf-toast-success: #00a32a;
+	--iftp-nf-toast-error: #d63638;
+
+	--iftp-nf-success: #007017;
+	--iftp-nf-gold: #dba617;
 }
 
 .iftp-nf-settings {
@@ -34,7 +69,7 @@
 	height: 44px;
 	flex-shrink: 0;
 	border-radius: 12px;
-	background: linear-gradient(135deg, #00609c 0%, #001b2d 100%);
+	background: linear-gradient(135deg, var(--iftp-nf-blue) 0%, var(--iftp-nf-dark-blue) 100%);
 }
 
 .iftp-nf-brand-badge img {
@@ -53,13 +88,13 @@
 
 .iftp-nf-settings-header p {
 	margin: 0;
-	color: #50575e;
+	color: var(--iftp-nf-gray-dark);
 	font-size: 13px;
 }
 
 .iftp-nf-settings .iftp-nf-card {
 	background: #fff;
-	border: 1px solid #dcdcde;
+	border: 1px solid var(--iftp-nf-gray-light);
 	border-radius: 6px;
 	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 	padding: 16px 20px;
@@ -69,7 +104,7 @@
 }
 
 .iftp-nf-settings .iftp-nf-card:hover {
-	border-color: #c3c4c7;
+	border-color: var(--iftp-nf-gray-mid);
 	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
@@ -110,6 +145,30 @@
 	border-color: var(--iftp-nf-blue) !important;
 	color: var(--iftp-nf-blue) !important;
 	filter: brightness(0.9);
+}
+
+/* WP core's own `.button:focus`/`.button-primary:focus` rules (`wp-admin.css`)
+   set their own `box-shadow`/`outline` in WP's generic admin blue — those
+   load after this stylesheet on some screens and are specific enough to win
+   over the plain `:focus` selectors above, so every button briefly flashes
+   WP's blue/black ring (and, since that box-shadow isn't one this file
+   controls, can clip square against the rounded corners set below) instead
+   of this plugin's own brand blue. Overriding `outline`/`box-shadow`
+   explicitly here — matching the ring treatment already used on this
+   screen's other custom controls (inputs, the columns trigger, pagination
+   buttons, etc.) — keeps focus visibly brand-colored and still fully round. */
+.iftp-nf-settings .button:focus,
+.iftp-nf-settings .button-primary:focus {
+	outline: none !important;
+	box-shadow: 0 0 0 1px #fff, 0 0 0 3px var(--iftp-nf-blue) !important;
+	border-radius: 8px !important;
+}
+
+.iftp-nf-entries .button:focus,
+.iftp-nf-entries .button-primary:focus {
+	outline: none !important;
+	box-shadow: 0 0 0 1px #fff, 0 0 0 3px var(--iftp-nf-blue) !important;
+	border-radius: 6px !important;
 }
 
 /* A bit more "spice" on the entries screen specifically — a rounder radius
@@ -175,6 +234,12 @@
 .iftp-nf-methods-table button.iftp-nf-request-activation:active {
 	transform: translateY(0);
 	box-shadow: none;
+}
+
+.iftp-nf-methods-table button.iftp-nf-request-activation:focus {
+	outline: none !important;
+	box-shadow: 0 0 0 1px #fff, 0 0 0 3px var(--iftp-nf-blue) !important;
+	border-radius: 6px !important;
 }
 
 .iftp-nf-settings input[type="checkbox"],
@@ -262,10 +327,10 @@
 	box-sizing: border-box;
 	height: 38px;
 	padding: 0 14px;
-	border: 1px solid #d5d8dc;
+	border: 1px solid var(--iftp-nf-gray-light);
 	border-radius: 8px;
 	background-color: #fff;
-	color: #2c3338;
+	color: var(--iftp-nf-gray-dark);
 	font-size: 13px;
 	transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -285,12 +350,12 @@
 .iftp-nf-settings input[type="number"]:hover,
 .iftp-nf-settings input[type="url"]:hover,
 .iftp-nf-settings select:hover {
-	border-color: #b9bdc3;
+	border-color: var(--iftp-nf-gray-mid);
 }
 
 #iftp-nf-methods-table-wrapper {
 	overflow-x: auto;
-	border: 1px solid #dcdcde;
+	border: 1px solid var(--iftp-nf-gray-light);
 	border-radius: 6px;
 }
 
@@ -301,9 +366,9 @@
 }
 
 .iftp-nf-methods-table thead th {
-	background: linear-gradient(180deg, #fbfbfc 0%, #f3f4f5 100%);
-	border-bottom: 2px solid #dcdcde;
-	color: #3c434a;
+	background: linear-gradient(#fff);
+	border-bottom: 2px solid var(--iftp-nf-gray-light);
+	color: var(--iftp-nf-gray-dark);
 	font-size: 12px;
 	font-weight: 600;
 	letter-spacing: 0.04em;
@@ -315,7 +380,7 @@
 	padding: 10px 12px;
 	font-size: 13px;
 	vertical-align: middle;
-	border-bottom: 1px solid #f0f0f1;
+	border-bottom: 1px solid var(--iftp-nf-gray-light);
 }
 
 .iftp-nf-methods-table tbody tr:last-child td {
@@ -323,7 +388,7 @@
 }
 
 .iftp-nf-methods-table tbody tr:hover {
-	background: #f9fbfc;
+	background: var(--iftp-nf-blue-tint);
 }
 
 .iftp-nf-methods-table .iftp-nf-col-control {
@@ -334,7 +399,7 @@
 }
 
 .iftp-nf-methods-table .iftp-nf-col-divider {
-	border-right: 1px solid #dcdcde;
+	border-right: 1px solid var(--iftp-nf-gray-light);
 }
 
 .iftp-nf-methods-table .iftp-nf-col-method,
@@ -353,7 +418,7 @@
 	margin-right: 8px;
 	font-weight: 600;
 	font-size: 11px;
-	color: #50575e;
+	color: var(--iftp-nf-gray-dark);
 }
 
 .iftp-nf-logo-slot img {
@@ -386,7 +451,7 @@
 	height: 24px;
 	line-height: 24px;
 	padding: 0 10px;
-	background: #f0f0f1;
+	background: var(--iftp-nf-gray-light);
 	border-radius: 12px;
 	font-size: 12px;
 }
@@ -401,11 +466,11 @@
 .iftp-nf-star {
 	cursor: pointer;
 	font-size: 18px;
-	color: #dcdcde;
+	color: var(--iftp-nf-gray-light);
 }
 
 .iftp-nf-default-method:checked + .iftp-nf-star {
-	color: #dba617;
+	color: var(--iftp-nf-gold);
 }
 
 .iftp-nf-star--hidden {
@@ -466,7 +531,7 @@
 
 .iftp-nf-save-status {
 	font-size: 13px;
-	color: #007017;
+	color: var(--iftp-nf-success);
 	opacity: 0;
 	transform: translateX(-4px);
 	transition: opacity 0.2s ease, transform 0.2s ease;
@@ -500,8 +565,8 @@
 /* A soft-tinted pill with a small dot — the dot carries a lighter, wider
    "halo" ring behind it (a static box-shadow, not an animation) so it reads
    as a status indicator rather than a flat bullet, at Victor's request.
-   Every color here is a colored-but-not-black text tone (never `#1d2327`
-   or pure black) over its own pale background tint. */
+   Every color here is a colored-but-not-black text tone (never
+   `--iftp-nf-gray-dark` or pure black) over its own pale background tint. */
 .iftp-nf-status-badge {
 	display: inline-flex;
 	align-items: center;
@@ -536,27 +601,26 @@
 
 .iftp-nf-status-badge--pending {
 	--iftp-nf-status-halo: rgba(150, 102, 11, 0.2);
-	background: #fdf3e0;
-	color: #96660b;
+	background: var(--iftp-nf-status-pending-bg);
+	color: var(--iftp-nf-status-pending-text);
 }
 
 .iftp-nf-status-badge--paid {
 	--iftp-nf-status-halo: rgba(26, 127, 75, 0.2);
-	background: #e6f6ec;
-	color: #1a7f4b;
+	background: var(--iftp-nf-status-paid-bg);
+	color: var(--iftp-nf-status-paid-text);
 }
 
-.iftp-nf-status-badge--failed,
-.iftp-nf-status-badge--cancelled {
+.iftp-nf-status-badge--failed {
 	--iftp-nf-status-halo: rgba(156, 47, 47, 0.18);
-	background: #fdeaea;
-	color: #9c2f2f;
+	background: var(--iftp-nf-status-failed-bg);
+	color: var(--iftp-nf-status-failed-text);
 }
 
 .iftp-nf-status-badge--expired {
 	--iftp-nf-status-halo: rgba(60, 67, 74, 0.22);
-	background: #e2e4e7;
-	color: #3c434a;
+	background: var(--iftp-nf-gray-light);
+	color: var(--iftp-nf-gray-dark);
 }
 
 .iftp-nf-test-badge {
@@ -567,7 +631,7 @@
 	font-size: 11px;
 	font-weight: 700;
 	letter-spacing: 0.02em;
-	background: #2c3338;
+	background: var(--iftp-nf-gray-dark);
 	color: #fff;
 }
 
@@ -575,13 +639,13 @@
 
 .iftp-nf-entries .description {
 	font-size: 14px;
-	color: #50575e;
+	color: var(--iftp-nf-gray-dark);
 	margin-bottom: 16px;
 }
 
 .iftp-nf-entries-card {
 	background: #fff;
-	border: 1px solid #dcdcde;
+	border: 1px solid var(--iftp-nf-gray-light);
 	border-radius: 8px;
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
 	overflow: hidden;
@@ -593,7 +657,7 @@
 	gap: 10px;
 	padding: 10px 16px;
 	background: #fff;
-	border-bottom: 1px solid #e2e4e7;
+	border-bottom: 1px solid var(--iftp-nf-gray-light);
 	overflow-x: auto;
 	overflow-y: hidden;
 	-webkit-overflow-scrolling: touch;
@@ -629,7 +693,7 @@
 	gap: 5px;
 	padding: 4px 10px;
 	border-radius: 999px;
-	color: #50575e;
+	color: var(--iftp-nf-gray-dark);
 	font-size: 12px;
 	font-weight: 500;
 	line-height: 1.4;
@@ -640,12 +704,12 @@
 
 .iftp-nf-status-tab:hover,
 .iftp-nf-status-tab:focus {
-	background: #f0f6fc;
+	background: var(--iftp-nf-blue-tint);
 	color: var(--iftp-nf-blue);
 }
 
 .iftp-nf-status-tab:active {
-	background: #e5eef7;
+	background: var(--iftp-nf-blue-tint-strong);
 }
 
 .iftp-nf-status-tab .count {
@@ -699,7 +763,7 @@
 	flex-shrink: 0;
 	width: 1px;
 	height: 20px;
-	background: #e2e4e7;
+	background: var(--iftp-nf-gray-light);
 	/* Pushes itself — and the filters form right after it — over to the far
 	   right of the header, leaving the status tabs pinned left. Collapses
 	   to 0 automatically once the bar is already overflowing (narrow/tablet
@@ -721,17 +785,25 @@
 
 .iftp-nf-entries-filters select,
 .iftp-nf-entries-filters input[type="date"],
-.iftp-nf-entries-filters input[type="search"] {
+.iftp-nf-entries-filters input[type="search"],
+.iftp-nf-entries-filters input[type="number"] {
 	box-sizing: border-box !important;
 	height: 32px !important;
 	padding: 0 10px !important;
-	border: 1px solid #d5d8dc;
+	border: 1px solid var(--iftp-nf-gray-light);
 	border-radius: 6px;
 	background: #fff;
-	color: #3c434a;
+	color: var(--iftp-nf-gray-dark);
 	font-size: 13px;
 	box-shadow: none;
 	min-height: 32px !important;
+}
+
+/* The "Custom…" per-page input (`EntriesPage::render()`) — narrow, just
+   enough for up to 3 digits (`PER_PAGE_MAX` is 250), rather than stretching
+   to the same width as the search/date fields beside it. */
+.iftp-nf-per-page-custom {
+	width: 64px !important;
 }
 
 /* The "Filter" submit button, at the same 32px height as the dropdowns
@@ -742,8 +814,8 @@
 	display: inline-flex !important;
 	align-items: center !important;
 	box-sizing: border-box !important;
-	height: 30px !important;
-	min-height: 30px !important;
+	height: 32px !important;
+	min-height: 32px !important;
 	padding: 0 14px !important;
 	line-height: normal !important;
 }
@@ -752,15 +824,16 @@
 	display: inline-flex !important;
 	align-items: center !important;
 	box-sizing: border-box !important;
-	height: 30px !important;
-	min-height: 30px !important;
-	padding: 0 14px !important;
+	height: 32px !important;
+	min-height: 32px !important;
+	padding: 8px !important;
 	line-height: normal !important;
 }
 
 .iftp-nf-entries-filters select:focus,
 .iftp-nf-entries-filters input[type="date"]:focus,
-.iftp-nf-entries-filters input[type="search"]:focus {
+.iftp-nf-entries-filters input[type="search"]:focus,
+.iftp-nf-entries-filters input[type="number"]:focus {
 	border-color: var(--iftp-nf-blue);
 	box-shadow: 0 0 0 1px var(--iftp-nf-blue);
 }
@@ -777,19 +850,19 @@
 	width: 15px;
 	height: 15px;
 	font-size: 15px;
-	color: #8c8f94;
+	color: var(--iftp-nf-gray-mid);
 	pointer-events: none;
 }
 
 .iftp-nf-search input[type="search"] {
 	min-width: 220px;
-	padding-left: 30px;
-	min-height: 30px;
+	padding-left: 32px;
+	min-height: 32px;
 }
 
 .iftp-nf-reset-filters {
 	padding: 0 4px;
-	color: #646970;
+	color: var(--iftp-nf-gray-mid);
 	font-size: 13px;
 	white-space: nowrap;
 	text-decoration: none;
@@ -811,6 +884,33 @@
 	margin-left: 4px;
 }
 
+/* "+ New Payment" trigger (see `render_create_entry_modal()`), sitting
+   between "Reset filters" and "Columns" — a filled brand-blue square
+   rather than the neutral outline the other toolbar buttons use, since
+   it's the one action here that creates something rather than filters or
+   configures the view, at Victor's request. */
+.iftp-nf-new-entry-trigger {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 32px;
+	height: 32px;
+	margin-left: 8px;
+	border: none;
+	border-radius: 6px;
+	background: var(--iftp-nf-blue);
+	color: #fff;
+	cursor: pointer;
+	transition: filter 0.15s ease;
+}
+
+.iftp-nf-new-entry-trigger:hover,
+.iftp-nf-new-entry-trigger:focus {
+	filter: brightness(0.92);
+	outline: none;
+}
+
 .iftp-nf-columns-trigger {
 	display: inline-flex;
 	align-items: center;
@@ -818,10 +918,10 @@
 	gap: 7px;
 	height: 32px !important;
 	padding: 0 12px !important;
-	border: 1px solid #d5d8dc;
+	border: 1px solid var(--iftp-nf-gray-light);
 	border-radius: 6px;
 	background: #fff;
-	color: #3c434a;
+	color: var(--iftp-nf-gray-dark);
 	font-size: 13px;
 	white-space: nowrap;
 	cursor: pointer;
@@ -830,11 +930,11 @@
 
 .iftp-nf-columns-trigger svg {
 	flex-shrink: 0;
-	color: #8c8f94;
+	color: var(--iftp-nf-gray-mid);
 }
 
 .iftp-nf-columns-trigger:hover {
-	border-color: #b9bdc3;
+	border-color: var(--iftp-nf-gray-mid);
 }
 
 .iftp-nf-columns-trigger:focus,
@@ -872,7 +972,7 @@
    `.wp-core-ui`/list-table styles carry enough specificity (and their own
    `!important`s) to otherwise win over a plain class selector here. */
 .iftp-nf-column-item:hover {
-	background: #f0f6fc !important;
+	background: var(--iftp-nf-blue-tint) !important;
 }
 
 /* Same "goes blue" hover cue as every other item in this screen's
@@ -891,7 +991,7 @@
 }
 
 .iftp-nf-column-item.is-hidden {
-	color: #8c8f94 !important;
+	color: var(--iftp-nf-gray-mid) !important;
 }
 
 /* A real <button> (see `entries.js`) so ArrowUp/ArrowDown can reorder the
@@ -907,7 +1007,7 @@
 	background: none;
 	padding: 0;
 	border-radius: 4px;
-	color: #b9bdc3 !important;
+	color: var(--iftp-nf-gray-mid) !important;
 	font: inherit;
 	font-size: 12px;
 	line-height: 1;
@@ -938,7 +1038,7 @@
 	justify-content: center;
 	width: 16px;
 	flex-shrink: 0;
-	color: #c3c4c7;
+	color: var(--iftp-nf-gray-mid);
 }
 
 .iftp-nf-column-toggle {
@@ -971,7 +1071,7 @@
 	justify-content: flex-end;
 	margin-top: 6px;
 	padding-top: 6px;
-	border-top: 1px solid #e2e4e7;
+	border-top: 1px solid var(--iftp-nf-gray-light);
 }
 
 /* Applied to both the `<th>` and every row's `<td>` sharing a hidden
@@ -979,6 +1079,11 @@
    count itself never changes, so no other layout adjustment is needed. */
 .iftp-nf-entries-table [data-col].iftp-nf-col-hidden {
 	display: none;
+}
+
+.iftp-nf-entries-table{
+	border: 0px !important;
+	box-shadow: none !important;
 }
 
 /* Bulk-actions bar: its own row below the table (never between the header
@@ -1041,12 +1146,12 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
-	height: 30px;
+	height: 32px;
 	padding: 0 12px;
 	border: none;
 	border-radius: 6px;
 	background: #fff;
-	color: #3c434a;
+	color: var(--iftp-nf-gray-dark);
 	font-size: 13px;
 	font-weight: 600;
 	cursor: pointer;
@@ -1055,11 +1160,11 @@
 
 .iftp-nf-bulk-actions-trigger:hover,
 .iftp-nf-bulk-actions-trigger:focus {
-	background: #f0f0f1;
+	background: var(--iftp-nf-gray-light);
 }
 
 .iftp-nf-bulk-actions-trigger:active {
-	background: #e2e4e7;
+	background: var(--iftp-nf-gray-light);
 }
 
 .iftp-nf-bulk-actions-arrow {
@@ -1085,11 +1190,16 @@
 	position: fixed;
 	min-width: 200px;
 	background: #fff;
-	border: 1px solid #dcdcde;
+	border: 1px solid var(--iftp-nf-gray-light);
 	border-radius: 10px;
 	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.06);
 	padding: 5px;
-	z-index: 100000;
+	/* Above `.iftp-nf-modal` (100050) — the "+ New Payment" popup's own
+	   enhanced selects (`data-iftp-enhance-select`) portal their menu here
+	   same as everything else does, so opening one from inside the modal
+	   needs this above the modal's overlay+box, not just above ordinary
+	   page content. */
+	z-index: 100055;
 	transform-origin: top right;
 	animation: iftp-nf-menu-in 0.16s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
@@ -1138,7 +1248,7 @@
 	border: none;
 	border-radius: 6px;
 	background: none;
-	color: #3c434a;
+	color: var(--iftp-nf-gray-dark);
 	font-size: 13px;
 	text-align: left;
 	white-space: nowrap;
@@ -1149,27 +1259,27 @@
 .iftp-nf-dropdown-item:hover,
 .iftp-nf-dropdown-item:focus,
 .iftp-nf-dropdown-item.is-active {
-	background: #f0f6fc;
+	background: var(--iftp-nf-blue-tint);
 	color: var(--iftp-nf-blue);
 }
 
 .iftp-nf-dropdown-item:active {
-	background: #e3f0fa;
+	background: var(--iftp-nf-blue-tint-strong);
 }
 
 .iftp-nf-dropdown-item--danger {
-	color: #a72b2b;
+	color: var(--iftp-nf-danger);
 }
 
 .iftp-nf-dropdown-item--danger:hover,
 .iftp-nf-dropdown-item--danger:focus,
 .iftp-nf-dropdown-item--danger.is-active {
-	background: #fbe1e1;
-	color: #a72b2b;
+	background: var(--iftp-nf-danger-bg);
+	color: var(--iftp-nf-danger);
 }
 
 .iftp-nf-dropdown-item--danger:active {
-	background: #f6cfcf;
+	background: var(--iftp-nf-danger-bg-active);
 }
 
 .iftp-nf-dropdown-dot {
@@ -1182,7 +1292,7 @@
 .iftp-nf-dropdown-divider {
 	height: 1px;
 	margin: 4px 2px;
-	background: #e2e4e7;
+	background: var(--iftp-nf-gray-light);
 }
 
 /* "All forms" / "entries per page" fake selects — the real <select> is kept
@@ -1207,17 +1317,17 @@
 	height: 32px !important;
 	max-width: 220px;
 	padding: 0 10px !important;
-	border: 1px solid #d5d8dc;
+	border: 1px solid var(--iftp-nf-gray-light);
 	border-radius: 6px;
 	background: #fff;
-	color: #3c434a;
+	color: var(--iftp-nf-gray-dark);
 	font-size: 13px;
 	cursor: pointer;
 	transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .iftp-nf-fake-select-trigger:hover {
-	border-color: #b9bdc3;
+	border-color: var(--iftp-nf-gray-mid);
 }
 
 .iftp-nf-fake-select-trigger:focus,
@@ -1236,7 +1346,7 @@
 
 .iftp-nf-fake-select-arrow {
 	flex-shrink: 0;
-	color: #8c8f94;
+	color: var(--iftp-nf-gray-mid);
 	transition: transform 0.15s ease;
 }
 
@@ -1267,10 +1377,10 @@
 	gap: 7px;
 	height: 32px !important;
 	padding: 0 10px !important;
-	border: 1px solid #d5d8dc;
+	border: 1px solid var(--iftp-nf-gray-light);
 	border-radius: 6px;
 	background: #fff;
-	color: #3c434a;
+	color: var(--iftp-nf-gray-dark);
 	font-size: 13px;
 	white-space: nowrap;
 	cursor: pointer;
@@ -1278,7 +1388,7 @@
 }
 
 .iftp-nf-date-trigger:hover {
-	border-color: #b9bdc3;
+	border-color: var(--iftp-nf-gray-mid);
 }
 
 .iftp-nf-date-trigger:focus,
@@ -1290,11 +1400,11 @@
 
 .iftp-nf-date-icon {
 	flex-shrink: 0;
-	color: #8c8f94;
+	color: var(--iftp-nf-gray-mid);
 }
 
 .iftp-nf-date-label.is-placeholder {
-	color: #8c8f94;
+	color: var(--iftp-nf-gray-mid);
 }
 
 /* The calendar dropdown itself — same portal/positioning technique as
@@ -1322,21 +1432,21 @@
 	border: none;
 	border-radius: 6px;
 	background: none;
-	color: #3c434a;
+	color: var(--iftp-nf-gray-dark);
 	cursor: pointer;
 	transition: background 0.1s ease;
 }
 
 .iftp-nf-calendar-nav:hover,
 .iftp-nf-calendar-nav:focus {
-	background: #f0f6fc;
+	background: var(--iftp-nf-blue-tint);
 	color: var(--iftp-nf-blue);
 }
 
 .iftp-nf-calendar-month-label {
 	font-size: 13px;
 	font-weight: 600;
-	color: #3c434a;
+	color: var(--iftp-nf-gray-dark);
 	text-transform: capitalize;
 }
 
@@ -1352,7 +1462,7 @@
 	align-items: center;
 	justify-content: center;
 	height: 24px;
-	color: #8c8f94;
+	color: var(--iftp-nf-gray-mid);
 	font-size: 11px;
 	font-weight: 600;
 	text-transform: uppercase;
@@ -1366,7 +1476,7 @@
 	border: none;
 	border-radius: 6px;
 	background: none;
-	color: #3c434a;
+	color: var(--iftp-nf-gray-dark);
 	font-size: 12px;
 	cursor: pointer;
 	transition: background 0.1s ease, color 0.1s ease;
@@ -1374,12 +1484,12 @@
 
 .iftp-nf-calendar-day:hover,
 .iftp-nf-calendar-day:focus {
-	background: #f0f6fc;
+	background: var(--iftp-nf-blue-tint);
 	color: var(--iftp-nf-blue);
 }
 
 .iftp-nf-calendar-day.is-outside {
-	color: #c3c4c7;
+	color: var(--iftp-nf-gray-mid);
 }
 
 .iftp-nf-calendar-day.is-today {
@@ -1400,7 +1510,7 @@
 	justify-content: space-between;
 	margin-top: 8px;
 	padding-top: 8px;
-	border-top: 1px solid #e2e4e7;
+	border-top: 1px solid var(--iftp-nf-gray-light);
 }
 
 .iftp-nf-dropdown-footer-btn {
@@ -1417,16 +1527,16 @@
 
 .iftp-nf-dropdown-footer-btn:hover,
 .iftp-nf-dropdown-footer-btn:focus {
-	background: #f0f6fc;
+	background: var(--iftp-nf-blue-tint);
 }
 
 .iftp-nf-dropdown-footer-btn--clear {
-	color: #a72b2b;
+	color: var(--iftp-nf-danger);
 }
 
 .iftp-nf-dropdown-footer-btn--clear:hover,
 .iftp-nf-dropdown-footer-btn--clear:focus {
-	background: #fbe1e1;
+	background: var(--iftp-nf-danger-bg);
 }
 
 .iftp-nf-entries-card-footer {
@@ -1437,11 +1547,10 @@
 	gap: 10px;
 	padding: 10px 16px;
 	background: #fff;
-	border-top: 1px solid #dcdcde;
 }
 
 .iftp-nf-entries-count {
-	color: #50575e;
+	color: var(--iftp-nf-gray-dark);
 	font-size: 13px;
 }
 
@@ -1470,8 +1579,8 @@
 }
 
 .iftp-nf-table-spinner {
-	width: 30px;
-	height: 30px;
+	width: 32px;
+	height: 32px;
 	border: 3px solid rgba(0, 96, 156, 0.18);
 	border-top-color: var(--iftp-nf-blue);
 	border-radius: 50%;
@@ -1493,8 +1602,8 @@
 
 .iftp-nf-entries-table thead th {
 	background: #fff !important;
-	border-bottom: 1px solid #dcdcde !important;
-	color: #484b4e !important;
+	border-bottom: 1px solid var(--iftp-nf-gray-light) !important;
+	color: var(--iftp-nf-gray-dark) !important;
 	font-size: 14px;
 	font-weight: 600;
 	letter-spacing: 0.04em;
@@ -1505,7 +1614,7 @@
 	padding: 6px 12px !important;
 	font-size: 13px;
 	vertical-align: middle;
-	border-bottom: 1px solid #f0f0f1;
+	border-bottom: 1px solid var(--iftp-nf-gray-light);
 }
 
 .iftp-nf-entries-table tbody tr:last-child td {
@@ -1532,7 +1641,7 @@
 
 .iftp-nf-sortable,
 .iftp-nf-sort-icon {
-	color: #00609c !important;
+	color: var(--iftp-nf-blue) !important;
 	transition: color 0.15s ease, opacity 0.15s ease;
 }
 
@@ -1585,6 +1694,14 @@
 	text-align: center;
 }
 
+.iftp-nf-col-check input[type="checkbox"] {
+	border: 1px solid var(--iftp-nf-gray-mid) !important;
+}
+
+.iftp-nf-col-check input[type="checkbox"]:focus {
+	border: 1px solid var(--iftp-nf-blue) !important;
+}
+
 .iftp-main-checkbox{
 	margin-left: 0 !important;
     margin-right: 4px !important;
@@ -1601,17 +1718,25 @@
 	font-variant-numeric: tabular-nums;
 }
 
+/* ID and Amount are plain text now (see `render_row()` — neither opens the
+   details panel anymore, only the "View" row action does), but keep the
+   brand-blue they had as clickable toggles, at Victor's request. */
+.iftp-nf-entries-table td[data-col="id"],
+.iftp-nf-entries-table .iftp-nf-col-amount {
+	color: var(--iftp-nf-blue);
+}
+
 /* Customer column: name bold on top, email muted underneath — best-effort
    from the submitted form's First/Last Name + Email fields (there's no
    fixed "customer" concept in a Ninja Forms submission), see
    `EntriesPage::customer_info()`. */
 .iftp-nf-customer-name {
 	font-weight: 600;
-	color: #3c434a;
+	color: var(--iftp-nf-gray-dark);
 }
 
 .iftp-nf-customer-email {
-	color: #646970;
+	color: var(--iftp-nf-gray-mid);
 	font-size: 12px;
 }
 
@@ -1627,10 +1752,10 @@
 	gap: 6px;
 	height: 24px;
 	padding: 0 10px;
-	border: 1px solid #dcdcde;
+	border: 1px solid var(--iftp-nf-gray-light);
 	border-radius: 999px;
-	background: #fbfbfc;
-	color: #3c434a;
+	background: var(--iftp-nf-gray-light);
+	color: var(--iftp-nf-gray-dark);
 	font-size: 12px;
 	font-weight: 600;
 	white-space: nowrap;
@@ -1653,8 +1778,8 @@
 	height: 24px;
 	padding: 0 10px;
 	border-radius: 6px;
-	background: #dcdee1;
-	color: #2c3338;
+	background: var(--iftp-nf-gray-light);
+	color: var(--iftp-nf-gray-dark);
 	font-size: 12px;
 	font-weight: 600;
 	text-decoration: none;
@@ -1669,18 +1794,18 @@
 
 .iftp-nf-payment-link-btn:hover,
 .iftp-nf-payment-link-btn:focus {
-	background: #cfd2d6;
+	background: var(--iftp-nf-gray-light);
 	color: var(--iftp-nf-blue);
 }
 
 .iftp-nf-payment-link-empty {
-	color: #c3c4c7;
+	color: var(--iftp-nf-gray-mid);
 }
 
 .iftp-nf-entries-table .iftp-nf-entries-empty {
 	padding: 32px 12px;
 	text-align: center;
-	color: #646970;
+	color: var(--iftp-nf-gray-mid);
 }
 
 .iftp-nf-empty-state {
@@ -1695,58 +1820,129 @@
 	opacity: 0.6;
 }
 
-/* Hover-revealed text row actions right under the ID — WP core's own
-   list-table pattern (`WP_List_Table::row_actions()`) rather than a
-   dedicated actions column, matching the reference design's "View | Trash"
-   style. Sits close under the ID button and fades/slides smoothly into
-   place on row hover, rather than snapping in — the box stays in flow at
-   all times (never `display: none`), so nothing above/below it jumps. */
+/* Hover-revealed row actions under the ID — a single line ("View | Edit
+   Fields | Delete", not stacked). Its height is always reserved at a fixed
+   size (never `max-height`/`display: none` toggling) — animating that
+   grew the row itself on hover, which shifted every row below it and the
+   whole table with it; Victor caught that. Only `opacity`/`transform`
+   animate here, which never affects layout, so the table never moves. */
 .iftp-nf-row-actions {
 	display: flex;
+	align-items: center;
 	gap: 6px;
-	margin-top: 1px;
+	height: 16px;
+	margin-top: 2px;
 	font-size: 12px;
-	color: #646970;
-	opacity: 0;
-	transform: translateY(-3px);
 	pointer-events: none;
-	transition: opacity 0.28s ease, transform 0.28s ease;
 }
 
 .iftp-nf-entry-row:hover .iftp-nf-row-actions,
 .iftp-nf-entry-row:focus-within .iftp-nf-row-actions {
-	opacity: 1;
-	transform: translateY(0);
 	pointer-events: auto;
 }
 
-/* The ID button itself lifts slightly on the same hover — a subtle,
-   smooth cue that ties it to the actions appearing just underneath it. */
-.iftp-nf-col-narrow .iftp-nf-details-toggle {
+/* The ID text itself lifts a couple of px on hover — same "makes room /
+   settles back to the middle" cue as before, but a pure transform (no
+   layout change) instead of the row actually growing under it. */
+.iftp-nf-id-value {
+	display: inline-block;
 	transition: transform 0.22s ease;
-	color: #00609c !important;
 }
 
-.iftp-nf-entry-row:hover .iftp-nf-col-narrow .iftp-nf-details-toggle,
-.iftp-nf-entry-row:focus-within .iftp-nf-col-narrow .iftp-nf-details-toggle {
-	transform: translateY(-2px);
-	color: #00609c !important;
+.iftp-nf-entry-row:hover .iftp-nf-id-value,
+.iftp-nf-entry-row:focus-within .iftp-nf-id-value {
+	transform: translateY(-3px);
 }
 
-.iftp-nf-row-actions a {
-	color: var(--iftp-nf-blue);
-	text-decoration: none;
+.iftp-nf-row-action {
 	font-size: 12px;
-}
-
-.iftp-nf-row-actions a:hover,
-.iftp-nf-row-actions a:focus {
-	color: #004875;
-	text-decoration: underline;
+	white-space: nowrap;
+	text-decoration: none;
+	cursor: pointer;
+	opacity: 0;
+	transform: translateY(5px);
+	/* No delay here — this is what applies leaving hover (unhover), so all
+	   three retreat together rather than un-staggering in reverse. */
+	transition: opacity 0.16s ease, transform 0.16s ease;
 }
 
 .iftp-nf-row-actions-sep {
-	color: #c3c4c7;
+	color: var(--iftp-nf-gray-mid);
+	opacity: 0;
+	transition: opacity 0.16s ease;
+}
+
+/* Entering hover: each item rises into place a beat after the last —
+   View, then Edit Fields, then Delete — instead of all three snapping in
+   together, at Victor's request. Only defined on the `:hover`/
+   `:focus-within` state, so the delay applies coming in, never leaving
+   (the plain `.iftp-nf-row-action` transition above, with no delay, is
+   what runs on the way out). */
+.iftp-nf-entry-row:hover .iftp-nf-row-action,
+.iftp-nf-entry-row:focus-within .iftp-nf-row-action {
+	opacity: 1;
+	transform: translateY(0);
+	transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.iftp-nf-entry-row:hover .iftp-nf-row-actions-sep,
+.iftp-nf-entry-row:focus-within .iftp-nf-row-actions-sep {
+	opacity: 1;
+	transition: opacity 0.2s ease;
+}
+
+.iftp-nf-entry-row:hover .iftp-nf-row-action--view,
+.iftp-nf-entry-row:focus-within .iftp-nf-row-action--view {
+	transition-delay: 0.02s;
+}
+
+.iftp-nf-entry-row:hover .iftp-nf-row-actions-sep:nth-of-type(1),
+.iftp-nf-entry-row:focus-within .iftp-nf-row-actions-sep:nth-of-type(1) {
+	transition-delay: 0.06s;
+}
+
+.iftp-nf-entry-row:hover .iftp-nf-row-action--edit,
+.iftp-nf-entry-row:focus-within .iftp-nf-row-action--edit {
+	transition-delay: 0.09s;
+}
+
+.iftp-nf-entry-row:hover .iftp-nf-row-actions-sep:nth-of-type(2),
+.iftp-nf-entry-row:focus-within .iftp-nf-row-actions-sep:nth-of-type(2) {
+	transition-delay: 0.13s;
+}
+
+.iftp-nf-entry-row:hover .iftp-nf-row-action--delete,
+.iftp-nf-entry-row:focus-within .iftp-nf-row-action--delete {
+	transition-delay: 0.16s;
+}
+
+.iftp-nf-row-action--edit {
+	color: var(--iftp-nf-blue);
+}
+
+/* `!important` + the extra `button.…button-link`/`.iftp-nf-details-toggle`
+   specificity on View and Delete: both are real `<button class="button-link">`
+   elements (Edit Fields is a plain `<a>`), so WP core's own `.button-link`
+   color/underline rules otherwise win on hover — without this, View and
+   Delete never showed the hover underline Edit Fields got for free. */
+button.iftp-nf-row-action--view.iftp-nf-details-toggle:hover,
+button.iftp-nf-row-action--view.iftp-nf-details-toggle:focus {
+	text-decoration: underline !important;
+}
+
+button.iftp-nf-row-action--delete.button-link {
+	color: var(--iftp-nf-danger) !important;
+}
+
+.iftp-nf-row-action--edit:hover,
+.iftp-nf-row-action--edit:focus {
+	text-decoration: underline;
+}
+
+button.iftp-nf-row-action--delete.button-link:hover,
+button.iftp-nf-row-action--delete.button-link:focus {
+	color: var(--iftp-nf-danger) !important;
+	text-decoration: underline !important;
 }
 
 .iftp-nf-entry-row {
@@ -1758,7 +1954,7 @@
 }
 
 .iftp-nf-entries-table tbody tr.iftp-nf-entry-row:hover {
-	background: #f0f6fc;
+	background: var(--iftp-nf-blue-tint);
 }
 
 /* A selected row (its `.iftp-nf-row-check` checkbox checked) gets its own
@@ -1808,13 +2004,13 @@
 }
 
 .iftp-nf-details-toggle:hover {
-	color: #004875;
+	color: var(--iftp-nf-blue-hover-text);
 	text-decoration: underline;
 }
 
 .iftp-nf-entry-details td {
-	background: #fff;
-	padding: 16px 20px;
+	background: #fafbfc;
+	padding: 14px 20px 18px;
 	border-top: none;
 }
 
@@ -1834,12 +2030,108 @@
 	}
 }
 
+/* The expanded row's content, restyled to read as an extension of
+   `.iftp-nf-entries-table` (same border token, radius, and label
+   letter-spacing) rather than plain unstyled text — a bordered card sitting
+   on the row's own light-gray background so it reads as a drawer nested
+   inside the table, not a stray paragraph. */
+.iftp-nf-details-panel {
+	background: #fff;
+	border: 1px solid var(--iftp-nf-gray-light);
+	border-radius: 8px;
+	padding: 16px 18px;
+}
+
 .iftp-nf-details-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+	gap: 14px 24px;
+}
+
+.iftp-nf-detail-item {
 	display: flex;
-	flex-wrap: wrap;
-	gap: 8px 32px;
-	margin-bottom: 12px;
+	flex-direction: column;
+	gap: 3px;
+	min-width: 0;
+}
+
+.iftp-nf-detail-label {
+	color: var(--iftp-nf-gray-mid);
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.iftp-nf-detail-value {
+	color: var(--iftp-nf-gray-dark);
 	font-size: 13px;
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+}
+
+.iftp-nf-detail-code {
+	align-self: flex-start;
+	background: var(--iftp-nf-blue-tint);
+	color: var(--iftp-nf-blue);
+	border-radius: 4px;
+	padding: 2px 7px;
+	font-size: 12px;
+	font-family: Consolas, Monaco, monospace;
+}
+
+.iftp-nf-detail-link {
+	color: var(--iftp-nf-blue);
+	text-decoration: none;
+	overflow-wrap: anywhere;
+}
+
+.iftp-nf-detail-link:hover,
+.iftp-nf-detail-link:focus {
+	color: var(--iftp-nf-blue-hover-text);
+	text-decoration: underline;
+}
+
+.iftp-nf-details-fields {
+	margin-top: 18px;
+	padding-top: 16px;
+	border-top: 1px solid var(--iftp-nf-gray-light);
+}
+
+.iftp-nf-details-fields-label {
+	display: block;
+	margin-bottom: 8px;
+}
+
+.iftp-nf-details-fields-table {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+}
+
+.iftp-nf-details-fields-table tr:not(:last-child) th,
+.iftp-nf-details-fields-table tr:not(:last-child) td {
+	border-bottom: 1px solid var(--iftp-nf-gray-light);
+}
+
+.iftp-nf-details-fields-table th,
+.iftp-nf-details-fields-table td {
+	padding: 7px 10px;
+	font-size: 13px;
+	text-align: left;
+	vertical-align: top;
+}
+
+.iftp-nf-details-fields-table th {
+	width: 25%;
+	color: var(--iftp-nf-gray-dark);
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.iftp-nf-details-fields-table td {
+	color: var(--iftp-nf-gray-dark);
+	word-break: break-word;
 }
 
 /* Confirm modal (see `EntriesPage::render_confirm_modal()`) — a single
@@ -1897,9 +2189,181 @@
 
 .iftp-nf-modal-box p {
 	margin: 0 0 18px;
-	color: #50575e;
+	color: var(--iftp-nf-gray-dark);
 	font-size: 13px;
 	line-height: 1.5;
+}
+
+/* The "+ New Payment" popup (`render_create_entry_modal()`) — wider than
+   the plain confirm dialog since it holds a real form, at Victor's
+   request ("what Contact Form 7 does" — a "+" that opens a popup form).
+   Its own field sizing/radius (36px/8px, vs. the confirm dialog's plain
+   text) so it reads as a proper form, not an alert. */
+.iftp-nf-modal-box--form {
+	width: 500px;
+	padding: 24px 26px;
+	text-align: left;
+}
+
+.iftp-nf-modal-box--form h2 {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 4px;
+	font-size: 17px;
+}
+
+.iftp-nf-modal-box--form h2::before {
+	content: '';
+	display: inline-block;
+	width: 22px;
+	height: 22px;
+	flex-shrink: 0;
+	border-radius: 6px;
+	background: var(--iftp-nf-blue);
+	-webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1.5v13M1.5 8h13' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center / 12px no-repeat;
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1.5v13M1.5 8h13' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") center / 12px no-repeat;
+}
+
+.iftp-nf-modal-box--form > p {
+	margin-bottom: 20px;
+}
+
+.iftp-nf-form-row {
+	display: flex;
+	gap: 14px;
+}
+
+.iftp-nf-form-row .iftp-nf-form-field {
+	flex: 1;
+	min-width: 0;
+}
+
+.iftp-nf-form-field {
+	margin-bottom: 16px;
+}
+
+.iftp-nf-form-field label {
+	display: block;
+	margin-bottom: 5px;
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--iftp-nf-gray-dark);
+}
+
+.iftp-nf-form-field input {
+	box-sizing: border-box;
+	width: 100%;
+	height: 36px;
+	padding: 0 10px;
+	border: 1px solid var(--iftp-nf-gray-light);
+	border-radius: 8px;
+	font-size: 13px;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* The real <select> itself, as a fallback for when enhanceSelect() hasn't
+   run (JS disabled/failed) — normally hidden and replaced by
+   `.iftp-nf-fake-select--modal` below. */
+.iftp-nf-form-field select {
+	box-sizing: border-box;
+	width: 100%;
+	height: 36px;
+	padding: 0 10px;
+	border: 1px solid var(--iftp-nf-gray-light);
+	border-radius: 8px;
+	font-size: 13px;
+}
+
+.iftp-nf-form-field input:focus {
+	border-color: var(--iftp-nf-blue);
+	box-shadow: 0 0 0 1px var(--iftp-nf-blue);
+	outline: none;
+}
+
+.iftp-nf-form-error {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0 0 16px;
+	padding: 9px 11px;
+	border-radius: 8px;
+	background: var(--iftp-nf-danger-bg);
+	color: var(--iftp-nf-danger);
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.iftp-nf-form-error[hidden] {
+	display: none;
+}
+
+/* "+ New Payment"'s own Form/Method/Status selects — full-width and a
+   touch taller than the compact toolbar filter chips (`.iftp-nf-fake-select-trigger`
+   alone), so they read as form fields matching the plain inputs beside
+   them, not another filter control — their own style, at Victor's
+   request ("so we don't confuse"). */
+.iftp-nf-fake-select--modal {
+	display: flex;
+	width: 100%;
+}
+
+.iftp-nf-fake-select--modal .iftp-nf-fake-select-trigger {
+	width: 100%;
+	max-width: none;
+	height: 36px !important;
+	padding: 0 12px !important;
+	border-radius: 8px;
+	font-size: 13px;
+}
+
+.iftp-nf-fake-select--modal .iftp-nf-fake-select-label {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	max-width: none;
+	flex: 1;
+	min-width: 0;
+}
+
+.iftp-nf-fake-select-icon {
+	flex-shrink: 0;
+	width: 18px;
+	height: 18px;
+	object-fit: contain;
+}
+
+.iftp-nf-dropdown-menu--modal {
+	min-width: 220px;
+}
+
+/* Scoped to the form popup only — the plain confirm dialog's own
+   `.iftp-nf-modal-actions` (no fields above it) doesn't need the divider,
+   and its buttons stay at their original size rather than matching the
+   taller 36px fields here. */
+.iftp-nf-modal-box--form .iftp-nf-modal-actions {
+	margin-top: 4px;
+	padding-top: 18px;
+	border-top: 1px solid var(--iftp-nf-gray-light);
+}
+
+.iftp-nf-modal-box--form .iftp-nf-modal-cancel,
+.iftp-nf-modal-box--form .iftp-nf-modal-confirm {
+	height: 36px;
+	padding: 0 16px;
+	border-radius: 8px;
+}
+
+@media (max-width: 500px) {
+	.iftp-nf-modal-box--form {
+		width: 92vw;
+		padding: 20px;
+	}
+
+	.iftp-nf-form-row {
+		flex-direction: column;
+		gap: 0;
+	}
 }
 
 .iftp-nf-modal-actions {
@@ -1911,10 +2375,10 @@
 .iftp-nf-modal-cancel {
 	height: 32px;
 	padding: 0 14px;
-	border: 1px solid #d5d8dc;
+	border: 1px solid var(--iftp-nf-gray-light);
 	border-radius: 6px;
 	background: #fff;
-	color: #3c434a;
+	color: var(--iftp-nf-gray-dark);
 	font-size: 13px;
 	cursor: pointer;
 	transition: background 0.15s ease;
@@ -1922,11 +2386,11 @@
 
 .iftp-nf-modal-cancel:hover,
 .iftp-nf-modal-cancel:focus {
-	background: #f0f0f1;
+	background: var(--iftp-nf-gray-light);
 }
 
 .iftp-nf-modal-cancel:active {
-	background: #e2e4e7;
+	background: var(--iftp-nf-gray-light);
 }
 
 .iftp-nf-modal-confirm {
@@ -1952,7 +2416,7 @@
 }
 
 .iftp-nf-modal-confirm--danger {
-	background: #a72b2b;
+	background: var(--iftp-nf-danger);
 }
 
 /* Toast (see `EntriesPage::render_toast()`) — success/error feedback after a
@@ -1968,11 +2432,11 @@
 	align-items: center;
 	max-width: 360px;
 	padding: 12px 16px;
-	background: #1d2327;
+	background: var(--iftp-nf-gray-dark);
 	color: #fff;
 	border-radius: 10px;
-	border-left: 3px solid #00a32a;
-	box-shadow: 0 8px 30px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.12);
+	border-left: 3px solid var(--iftp-nf-toast-success);
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.12);
 	font-size: 13px;
 	line-height: 1.4;
 	transform: translateY(16px);
@@ -1992,7 +2456,7 @@
 }
 
 .iftp-nf-toast--error {
-	border-left-color: #d63638;
+	border-left-color: var(--iftp-nf-toast-error);
 }
 
 @media (max-width: 480px) {
@@ -2023,143 +2487,233 @@
 	.iftp-nf-entries .button-primary,
 	.iftp-nf-page-btn,
 	.iftp-nf-page-number,
-	.iftp-nf-page-jump input[type="number"] {
+	.iftp-nf-page-jump-input,
+	.iftp-nf-scroll-btn {
 		animation: none;
 		transition: none;
 	}
 }
 
-/* Pagination: << < Pag. 1 [2] 4 5 … x [go] > >> */
+/* Pagination — mirrors the ifthenpay-payments-for-contactform7 plugin's own
+   pagination footer (prev/next chevron buttons, page-number pills, and a
+   jump-to-page field standing in for the right-hand ellipsis) rather than
+   this screen's earlier, busier «/Pag./jump-form design, at Victor's
+   request. */
 
 .iftp-nf-pagination {
-	display: flex;
+	display: inline-flex;
 	align-items: center;
+	gap: 4px;
 	flex-wrap: wrap;
-	gap: 6px;
 }
 
 .iftp-nf-page-btn {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	min-width: 30px;
-	height: 30px;
-	padding: 0 6px;
-	border: 1px solid #d5d8dc;
-	border-radius: 6px;
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	box-sizing: border-box;
+	border: 1px solid var(--iftp-nf-gray-light);
+	border-radius: 8px;
 	background: #fff;
-	color: var(--iftp-nf-blue);
-	font-size: 14px;
-	line-height: 1;
+	color: var(--iftp-nf-gray-mid);
+	cursor: pointer;
 	text-decoration: none;
-	transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
 
 .iftp-nf-page-btn:hover {
-	background: #f0f6fc;
 	border-color: var(--iftp-nf-blue);
-	box-shadow: 0 2px 6px rgba(0, 96, 156, 0.12);
-	transform: translateY(-1px);
+	color: var(--iftp-nf-gray-dark);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
 }
 
-.iftp-nf-page-btn:active {
-	transform: translateY(0);
-	box-shadow: none;
+/* `:focus`, not `:focus-visible` — see `a.iftp-nf-page-number:focus` below
+   for why a mouse click needs the plain pseudo-class here too. */
+.iftp-nf-page-btn:focus {
+	outline: none !important;
+	border-color: var(--iftp-nf-blue) !important;
+	border-radius: 8px !important;
+	box-shadow: 0 0 0 2px var(--iftp-nf-blue-tint-strong) !important;
 }
 
 .iftp-nf-page-btn.is-disabled {
-	color: #c3c4c7;
-	background: #f6f7f7;
+	opacity: 0.38;
+	pointer-events: none;
 	cursor: default;
-}
-
-.iftp-nf-page-label {
-	color: #50575e;
-	font-size: 13px;
-	margin: 0 2px 0 6px;
 }
 
 .iftp-nf-page-numbers {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
+	gap: 3px;
 }
 
 .iftp-nf-page-number {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	min-width: 30px;
-	height: 30px;
-	padding: 0 6px;
-	border-radius: 6px;
-	color: var(--iftp-nf-blue);
-	font-size: 13px;
+	min-width: 32px;
+	height: 32px;
+	padding: 0 4px;
+	box-sizing: border-box;
+	border: 1px solid var(--iftp-nf-gray-light);
+	border-radius: 8px;
+	background: #fff;
+	color: var(--iftp-nf-gray-mid);
+	font-size: 12px;
+	font-weight: 500;
 	text-decoration: none;
-	transition: background 0.15s ease, transform 0.15s ease;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
 
 a.iftp-nf-page-number:hover {
-	background: #f0f6fc;
-	transform: translateY(-1px);
+	border-color: var(--iftp-nf-blue);
+	color: var(--iftp-nf-gray-dark);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
 }
 
-a.iftp-nf-page-number:active {
-	transform: translateY(0);
+/* `:focus`, not `:focus-visible` — Chrome/Safari don't consider a mouse
+   click on an `<a>` "keyboard-relevant", so `:focus-visible` never matches
+   here on a click, only on Tab — leaving WP core's own `a:focus` styles
+   (plain black/blue outline, square corners) as the only thing visibly
+   applied, which is what looked like "nothing changed". `!important`
+   because WP core's admin CSS loads after this stylesheet and is specific
+   enough to still win otherwise, as with the `.button`/`.button-primary`
+   focus fix above. */
+a.iftp-nf-page-number:focus {
+	outline: none !important;
+	border-color: var(--iftp-nf-blue) !important;
+	border-radius: 8px !important;
+	color: var(--iftp-nf-gray-dark) !important;
+	box-shadow: 0 0 0 2px var(--iftp-nf-blue-tint-strong) !important;
 }
 
 .iftp-nf-page-number.is-current {
 	background: var(--iftp-nf-blue);
+	border-color: var(--iftp-nf-blue);
 	color: #fff;
 	font-weight: 600;
+	pointer-events: none;
+	box-shadow: 0 1px 3px rgba(0, 96, 156, 0.25);
 }
 
 .iftp-nf-page-ellipsis {
-	color: #a7aaad;
+	color: var(--iftp-nf-gray-mid);
 	padding: 0 2px;
 }
 
-.iftp-nf-page-jump {
+/* The right-hand "…" doubles as a jump-to-page field — it reads as a plain
+   ellipsis via its placeholder until clicked, at which point typing a page
+   number and pressing Enter navigates straight there (see `entries.js`,
+   `bindPageJumpInput()`). `!important` throughout: WP core's own
+   `input[type="text"]` rule (wp-admin/css/forms.css) sets `min-height: 40px`
+   and `padding: 0 12px` with slightly higher selector specificity than a
+   single class — `height` alone can't win against that `min-height` floor
+   regardless, so both need overriding explicitly, same as every other input
+   on this screen (`.iftp-nf-entries-filters input`, etc.). */
+.iftp-nf-page-jump-input {
+	box-sizing: border-box !important;
+	width: 32px !important;
+	height: 32px !important;
+	min-height: 32px !important;
+	padding: 0 4px !important;
+	border: 1px solid var(--iftp-nf-gray-light) !important;
+	border-radius: 8px !important;
+	background: #fff;
+	color: var(--iftp-nf-gray-mid) !important;
+	font-size: 12px;
+	text-align: center;
+	appearance: textfield;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.iftp-nf-page-jump-input::placeholder {
+	color: var(--iftp-nf-gray-mid);
+	opacity: 1;
+}
+
+.iftp-nf-page-jump-input:focus {
+	outline: none !important;
+	border-color: var(--iftp-nf-blue) !important;
+	box-shadow: 0 0 0 2px var(--iftp-nf-blue-tint-strong) !important;
+	color: var(--iftp-nf-gray-dark);
+}
+
+/* Sticky "scroll to top" button — shown only once scrolled down, and only
+   when there's enough on a page to make scrolling back up tedious (more
+   than 10 entries per page), matching the same threshold
+   ifthenpay-payments-for-contactform7 uses for its own version of this
+   button. See `entries.js`, `bindScrollToTopButton()`. */
+.iftp-nf-scroll-btn {
+	position: fixed;
+	right: 24px;
+	bottom: 28px;
+	z-index: 9999;
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
-	margin-left: 8px;
-	padding-left: 10px;
-	border-left: 1px solid #dcdcde;
+	justify-content: center;
+	width: 40px;
+	height: 40px;
+	border: none;
+	border-radius: 50%;
+	background: var(--iftp-nf-blue);
+	color: #fff;
+	cursor: pointer;
+	box-shadow: 0 2px 10px rgba(0, 96, 156, 0.35);
+	opacity: 0;
+	pointer-events: none;
+	transform: translateY(6px);
+	transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
-.iftp-nf-page-jump input[type="number"] {
-	width: 56px;
-	height: 30px;
-	border: 1px solid #d5d8dc;
-	border-radius: 6px;
-	text-align: center;
-	transition: border-color 0.15s ease, box-shadow 0.15s ease;
-	min-height: 32px !important;
-}
-
-.iftp-nf-page-jump input[type="number"]:focus {
-	border-color: var(--iftp-nf-blue);
-	box-shadow: 0 0 0 1px var(--iftp-nf-blue);
-	outline: none;
-}
-
-.iftp-nf-page-jump .button {
-	height: 30px;
-	line-height: 28px;
-	padding: 0 12px;
-	border-radius: 6px !important;
-	transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
-}
-
-.iftp-nf-page-jump .button:hover {
-	box-shadow: 0 2px 6px rgba(0, 96, 156, 0.15);
-	transform: translateY(-1px);
-}
-
-.iftp-nf-page-jump .button:active {
+.iftp-nf-scroll-btn.is-visible {
+	opacity: 1;
+	pointer-events: auto;
 	transform: translateY(0);
-	box-shadow: none;
+}
+
+.iftp-nf-scroll-btn:hover {
+	background: var(--iftp-nf-dark-blue);
+	box-shadow: 0 4px 14px rgba(0, 96, 156, 0.4);
+}
+
+.iftp-nf-scroll-btn svg {
+	display: block;
+}
+
+/* Below WP admin's own 782px breakpoint: footer stacks (count above,
+   pagination below, both centered) and the pagination bar scrolls
+   horizontally as one strip if it still doesn't fit, rather than any of its
+   buttons wrapping onto a ragged second line, at Victor's request. */
+@media (max-width: 782px) {
+	.iftp-nf-entries-card-footer {
+		flex-direction: column;
+		align-items: center;
+		text-align: center;
+	}
+
+	.iftp-nf-pagination {
+		flex-wrap: nowrap;
+		justify-content: center;
+		width: 100%;
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+		scrollbar-width: none;
+	}
+
+	.iftp-nf-pagination::-webkit-scrollbar {
+		display: none;
+	}
+
+	.iftp-nf-page-btn,
+	.iftp-nf-page-numbers,
+	.iftp-nf-page-number,
+	.iftp-nf-page-jump-input {
+		flex-shrink: 0;
+	}
 }
 
 /* Peeking ninja mascot — decorative only, self-contained (no AJAX, no
@@ -2196,9 +2750,9 @@ a.iftp-nf-page-number:active {
 	transition: none !important;
 }
 
-/* 3. Hover step 1 & 3: hops right, still visible. */
+/* 3. Hover step 1 & 3: hops out toward the middle of the screen, still visible. */
 .nf-spark-peeking-ninja-wrapper.nf-shy-ninja-right {
-	left: calc(160px + clamp(24px, 6vw, 95px) + 60px);
+	left: 50vw;
 }
 
 /* 4. Hover step 4: fully exits off-screen to the left. */
@@ -2216,15 +2770,6 @@ a.iftp-nf-page-number:active {
 	40% { transform: translateX(-50%) translateX(6px) rotate(4deg); }
 	60% { transform: translateX(-50%) translateX(-4px) rotate(-2deg); }
 	80% { transform: translateX(-50%) translateX(4px) rotate(2deg); }
-}
-
-.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-idle-tremble {
-	animation: iftp-nf-ninja-tremble 2.6s ease-in-out infinite;
-}
-
-@keyframes iftp-nf-ninja-tremble {
-	0%, 100% { transform: translateX(-50%) translateY(0); }
-	50% { transform: translateX(-50%) translateY(-2px); }
 }
 
 .nf-spark-peeking-ninja {
@@ -2260,21 +2805,120 @@ a.iftp-nf-page-number:active {
 	100% { transform: translate(-50%, 10%) scale(2.2); opacity: 0; }
 }
 
-/* Slower "grenade falls, cloud rises and holds, then clears" cover, played
-   over his teleport back home while fully off-screen. */
-.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke {
-	animation: iftp-nf-smoke-cover 1.8s ease-in-out;
+/* Return-cover cluster (`render_peeking_ninja()` in EntriesPage.php) —
+   22 puffs across four overlapping rows, densely packed to blanket his
+   whole silhouette (wide base, narrowing height by height), inert
+   everywhere except the return sequence below. */
+.nf-spark-peeking-ninja-wrapper__smoke-cluster {
+	position: absolute;
+	left: 50%;
+	bottom: 0;
+	pointer-events: none;
 }
+
+.nf-spark-peeking-ninja-wrapper__smoke-puff {
+	position: absolute;
+	bottom: 0;
+	border-radius: 50%;
+	background: radial-gradient(circle, rgba(150, 150, 150, 0.95) 0%, rgba(150, 150, 150, 0.78) 55%, rgba(150, 150, 150, 0) 85%);
+	opacity: 0;
+	transform: translateX(-50%) scale(0.5);
+	pointer-events: none;
+}
+
+/* Four overlapping bands building a rounded cloud silhouette. Each band's
+   width deliberately does NOT shrink evenly into the next (mid stays
+   almost as wide as the base, the top is a flattened two-bump ridge, not
+   a single point) — an even per-band taper is exactly what reads as a
+   triangle instead of a cloud. Sizes and offsets are jittered rather than
+   mirrored/evenly spaced for the same reason. Shifted 5px lower overall,
+   at Victor's request. */
+
+/* Base: wide, dense, hugging the ground. */
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(1)  { left: -52px; bottom: -5px; width: 32px; height: 32px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(2)  { left: -34px; bottom: -7px; width: 36px; height: 36px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(3)  { left: -14px; bottom: -6px; width: 36px; height: 36px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(4)  { left: 8px;   bottom: -8px; width: 36px; height: 36px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(5)  { left: 28px;  bottom: -6px; width: 36px; height: 36px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(6)  { left: 46px;  bottom: -7px; width: 34px; height: 34px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(7)  { left: 64px;  bottom: -4px; width: 32px; height: 32px; }
+
+/* Mid: stays nearly as wide as the base — a bulge, not a narrower echo of it. */
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(8)  { left: -48px; bottom: 9px;  width: 34px; height: 34px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(9)  { left: -24px; bottom: 11px; width: 34px; height: 34px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(10) { left: -4px;  bottom: 13px; width: 36px; height: 36px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(11) { left: 16px;  bottom: 11px; width: 34px; height: 34px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(12) { left: 36px;  bottom: 9px;  width: 34px; height: 34px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(13) { left: 56px;  bottom: 7px;  width: 34px; height: 34px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(22) { left: 6px;   bottom: 13px; width: 34px; height: 34px; }
+
+/* Upper: rounded shoulders, offset asymmetrically rather than mirrored. */
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(14) { left: -30px; bottom: 25px; width: 30px; height: 30px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(15) { left: -10px; bottom: 30px; width: 34px; height: 34px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(16) { left: 14px;  bottom: 29px; width: 32px; height: 32px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(17) { left: 34px;  bottom: 24px; width: 28px; height: 28px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(18) { left: 2px;   bottom: 27px; width: 28px; height: 28px; }
+
+/* Top: a flattened two-bump ridge — not a single apex, which is what would tip this back into a triangle. */
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(19) { left: -18px; bottom: 38px; width: 26px; height: 26px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(20) { left: 4px;   bottom: 41px; width: 30px; height: 30px; }
+.nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(21) { left: 22px;  bottom: 37px; width: 26px; height: 26px; }
+
+
+/* Slower "grenade falls, cloud rises and holds, then clears" cover, played
+   over his teleport back home while fully off-screen — a dense, overlapping
+   cluster of puffs that thicken (more of them, each less transparent) and
+   blanket his whole shape down to a silhouette, rather than one big circle
+   stretching outward around him. Blooms in from the base upward in six
+   waves. Starts .5s earlier and lingers .2s later than the previous timing
+   (delay -.5s, duration +.7s), at Victor's request. */
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff {
+	animation: iftp-nf-smoke-cluster-puff 2.9s ease-in-out backwards;
+}
+
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(1),
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(2),
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(3) { animation-delay: .3s; }
+
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(4),
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(5),
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(6),
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(7) { animation-delay: .38s; }
+
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(8),
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(9),
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(10) { animation-delay: .46s; }
+
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(11),
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(12),
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(13),
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(22) { animation-delay: .54s; }
+
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(14),
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(15),
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(16),
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(17),
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(18) { animation-delay: .62s; }
+
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(19),
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(20),
+.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke-puff:nth-child(21) { animation-delay: .7s; }
 
 .nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja {
-	animation: nf-shy-ninja-rise 1.8s ease-in-out;
+	/* `backwards` holds him at the 0% (invisible) keyframe through the 1s
+	   delay above — otherwise he'd flash fully visible for that second
+	   before the delayed animation actually kicks in. */
+	animation: nf-shy-ninja-rise 1.8s ease-in-out 1s backwards;
 }
 
-@keyframes iftp-nf-smoke-cover {
-	0% { transform: translate(-50%, 40%) scale(0); opacity: 0; }
-	30% { transform: translate(-50%, 0%) scale(2.6); opacity: 0.95; }
-	70% { transform: translate(-50%, 0%) scale(2.6); opacity: 0.95; }
-	100% { transform: translate(-50%, -10%) scale(3.2); opacity: 0; }
+/* Each puff barely grows — the "thickening" comes from more of them
+   becoming opaque over time (staggered `animation-delay` above), not from
+   any one puff stretching taller or wider. */
+@keyframes iftp-nf-smoke-cluster-puff {
+	0% { transform: translateX(-50%) scale(0.5); opacity: 0; }
+	40% { transform: translateX(-50%) scale(0.85); opacity: 0.6; }
+	70% { transform: translateX(-50%) scale(1); opacity: 0.92; }
+	100% { transform: translateX(-50%) scale(1); opacity: 0; }
 }
 
 @keyframes nf-shy-ninja-rise {
@@ -2286,7 +2930,6 @@ a.iftp-nf-page-number:active {
 @media (prefers-reduced-motion: reduce) {
 	.nf-spark-peeking-ninja-wrapper,
 	.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-shake,
-	.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-idle-tremble,
 	.nf-spark-peeking-ninja-wrapper__smoke,
 	.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-active .nf-spark-peeking-ninja-wrapper__smoke,
 	.nf-spark-peeking-ninja-wrapper.nf-shy-ninja-smoke-cover-active .nf-spark-peeking-ninja-wrapper__smoke,
@@ -2347,7 +2990,7 @@ a.iftp-nf-page-number:active {
 	gap: 4px;
 	margin: 0 0 18px;
 	padding: 4px;
-	background: #f0f0f1;
+	background: var(--iftp-nf-gray-light);
 	border-radius: 10px;
 }
 
@@ -2357,7 +3000,7 @@ a.iftp-nf-page-number:active {
 	background: none;
 	padding: 8px 16px;
 	border-radius: 8px;
-	color: #50575e;
+	color: var(--iftp-nf-gray-dark);
 	font-size: 13px;
 	font-weight: 600;
 	cursor: pointer;
@@ -2437,7 +3080,7 @@ a.iftp-nf-page-number:active {
    `bindMessageEditors()`. */
 
 .iftp-nf-message-editor {
-	border: 1px solid #dcdcde;
+	border: 1px solid var(--iftp-nf-gray-light);
 	border-radius: 6px;
 	overflow: hidden;
 }
@@ -2447,8 +3090,8 @@ a.iftp-nf-page-number:active {
 	align-items: center;
 	gap: 2px;
 	padding: 6px 8px;
-	background: #fbfbfc;
-	border-bottom: 1px solid #dcdcde;
+	background: var(--iftp-nf-gray-light);
+	border-bottom: 1px solid var(--iftp-nf-gray-light);
 }
 
 .iftp-nf-message-tab {
@@ -2456,7 +3099,7 @@ a.iftp-nf-page-number:active {
 	background: none;
 	padding: 5px 10px;
 	border-radius: 6px;
-	color: #50575e;
+	color: var(--iftp-nf-gray-dark);
 	font-size: 12px;
 	font-weight: 600;
 	cursor: pointer;
@@ -2469,7 +3112,7 @@ a.iftp-nf-page-number:active {
 }
 
 .iftp-nf-message-tab.is-active {
-	background: #e7f1f8;
+	background: var(--iftp-nf-blue-tint-strong);
 	color: var(--iftp-nf-blue);
 }
 
@@ -2479,7 +3122,7 @@ a.iftp-nf-page-number:active {
 	gap: 2px;
 	margin-left: auto;
 	padding-left: 8px;
-	border-left: 1px solid #dcdcde;
+	border-left: 1px solid var(--iftp-nf-gray-light);
 }
 
 .iftp-nf-message-format {
@@ -2491,7 +3134,7 @@ a.iftp-nf-page-number:active {
 	border: none;
 	border-radius: 4px;
 	background: none;
-	color: #3c434a;
+	color: var(--iftp-nf-gray-dark);
 	font-size: 12px;
 	cursor: pointer;
 	transition: background 0.1s ease;
@@ -2499,7 +3142,7 @@ a.iftp-nf-page-number:active {
 
 .iftp-nf-message-format:hover,
 .iftp-nf-message-format:focus {
-	background: #e2e4e7;
+	background: var(--iftp-nf-gray-light);
 	color: var(--iftp-nf-blue);
 }
 
@@ -2513,7 +3156,7 @@ a.iftp-nf-page-number:active {
 	border: none;
 	font-size: 13px;
 	line-height: 1.6;
-	color: #2c3338;
+	color: var(--iftp-nf-gray-dark);
 }
 
 .iftp-nf-message-normal {
@@ -2522,7 +3165,7 @@ a.iftp-nf-page-number:active {
 
 .iftp-nf-message-normal:empty::before {
 	content: attr(data-placeholder);
-	color: #8c8f94;
+	color: var(--iftp-nf-gray-mid);
 }
 
 .iftp-nf-message-raw {
@@ -2552,4 +3195,59 @@ a.iftp-nf-page-number:active {
 .iftp-nf-confirmation .button,
 .iftp-nf-confirmation .button-primary {
 	padding: 0 20px !important;
+}
+
+/* WP admin footer on this plugin's own two settings tabs only (Payments,
+   Confirmation Type) — see `Admin\AdminFooter`. `#footer-left` and
+   `#footer-upgrade` are core WP's real left/right footer slots; the
+   "Powered by" chip is a separate element (printed on `in_admin_footer`,
+   which fires before either of those) positioned absolutely dead-center in
+   `#wpfooter` — `#wpfooter` is `position: absolute` in wp-admin core CSS, so
+   it's already this chip's positioning context. */
+
+.iftp-nf-footer-rate-link {
+	color: var(--iftp-nf-blue);
+	text-decoration: none;
+}
+
+.iftp-nf-footer-rate-link:hover,
+.iftp-nf-footer-rate-link:focus {
+	color: var(--iftp-nf-blue-hover-text);
+	text-decoration: underline;
+}
+
+.iftp-nf-footer-powered {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	pointer-events: none;
+}
+
+.iftp-nf-footer-powered-label {
+	font-size: 12px;
+	color: var(--iftp-nf-gray-mid);
+}
+
+.iftp-nf-footer-logo {
+	display: block;
+	height: 16px;
+	width: auto;
+	user-select: none;
+	-webkit-user-drag: none;
+}
+
+.iftp-nf-footer-version {
+	color: var(--iftp-nf-gray-mid);
+}
+
+/* Centered chip would otherwise sit on top of the left/right footer text
+   once the screen is too narrow for all three to fit side by side. */
+@media (max-width: 600px) {
+	.iftp-nf-footer-powered {
+		display: none;
+	}
 }

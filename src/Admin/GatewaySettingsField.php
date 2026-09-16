@@ -11,12 +11,12 @@ if (! defined('ABSPATH')) {
 }
 
 /**
- * Renders the methods table: one row per catalog method, an "Enabled"
+ * I render the methods table: one row per catalog method, an "Enabled"
  * checkbox, a star-toggle "Default Method" radio, and a "Request
  * Activation" button for anything not yet provisioned.
  *
- * Follows the mandatory "Default Method Selector" contract in
- * `.claude/agents/wp-reverse-engineer.md` — a radio group, never a select.
+ * I use a radio group for the default method, never a select — that's a
+ * hard project requirement.
  */
 class GatewaySettingsField
 {
@@ -66,12 +66,9 @@ class GatewaySettingsField
     {
         $logo = $method['logo'] ?? '';
         $provisioned = '' !== $method['account'];
-        // $method['account'] is the full "ENTITY|ACCOUNT" accounts-string
-        // segment (see Sync\GatewaySync::resolve_account()); show just the
-        // bare code here, the Method column already names the entity.
-        // Multibanco is the exception: its two parts are Entidade/Subentidade
-        // (e.g. "11686|000"), not an entity label + account, so both halves
-        // are meaningful and shown as "11686 | 000".
+        // I only show the bare account code — the Method column already
+        // names the entity. Multibanco's two parts are both meaningful
+        // (Entidade|Subentidade, e.g. "11686|000"), so I show both there.
         $account_parts   = explode('|', $method['account']);
         $account_display = ! $provisioned ? '' : (
             'MB' === $method['entity'] ? implode(' | ', $account_parts) : end($account_parts)
