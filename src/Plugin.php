@@ -52,6 +52,7 @@ class Plugin
         (new FrontendController())->register();
         (new WebhookController())->register();
         (new ExpiredPaymentsCron())->register();
+        ExpiredPaymentsCron::schedule();
 
         add_action('template_redirect', [$this, 'maybe_redirect_paid_confirmation']);
         add_action('wp_enqueue_scripts', [$this, 'maybe_enqueue_return_banner']);
