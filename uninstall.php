@@ -28,6 +28,7 @@ delete_option('iftp_nf_confirmation_failed_message');
 delete_option('iftp_nf_confirmation_cancelled_message');
 delete_option('iftp_nf_payments_index_version');
 delete_option('iftp_nf_adhoc_payments_index_version');
+delete_option('iftp_nf_adhoc_form');
 delete_option('iftp_nf_test_ref_seq');
 
 $payment_options = $wpdb->get_col(

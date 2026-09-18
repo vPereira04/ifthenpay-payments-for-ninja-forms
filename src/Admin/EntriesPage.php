@@ -28,35 +28,34 @@ class EntriesPage
     private const NONCE_ACTION     = 'iftp_nf_entries_delete';
 
     /**
-     * Not a real ifthenpay gateway method — an extra option only the
-     * "+ New Payment" popup's Method select offers, for a payment actually
-     * taken in cash, at Victor's request. Handled like any other method
-     * once picked (`render_method_cell()`, `ajax_create_entry()`), just
-     * never written into `SettingsRepository`'s real connected-methods
-     * list, since it isn't one.
+     * Legacy only — rows created back when the "+ New Payment" popup let the
+     * admin pick a method still store this bare value for cash. New rows
+     * skip it and go straight to `AD_HOC_LABEL`. Kept so `render_method_cell()`
+     * still renders those old rows correctly.
      */
     private const MANUAL_CASH_METHOD = 'cash';
 
     /**
-     * The label shown for `MANUAL_CASH_METHOD`, and what actually gets
-     * stored/searched (see `AD_HOC_LABEL_PREFIX`) — a fixed literal rather
-     * than run through `__()` for that reason: a translation could drift
-     * out of sync with what's already saved in old rows, breaking both the
-     * icon match in `render_method_cell()` and search for "dinheiro".
+     * Legacy only — the label `MANUAL_CASH_METHOD` rows and old
+     * `AD_HOC_LABEL_PREFIX`-prefixed cash rows used. Kept in sync with what's
+     * already stored so `render_method_cell()`'s icon match doesn't break.
      */
     private const MANUAL_CASH_LABEL = 'Dinheiro';
 
     /**
-     * A payment recorded through the "+ New Payment" popup never went
-     * through a real checkout, so its Method column is stamped "Ad Hoc -
-     * {method}" (e.g. "Ad Hoc - MBWAY", "Ad Hoc - Dinheiro") rather than
-     * just the bare method — literally stored that way, not just displayed
-     * that way, at Victor's request: searching "ad hoc", "dinheiro", or
-     * "mbway" all need to find it via the existing `pay_method LIKE %s`
-     * search clause (`SubmissionStore::build_where()`), which only matches
-     * substrings actually in the stored value.
+     * Legacy only — old "+ New Payment" rows stamp their Method as
+     * "Ad Hoc - {method}" (e.g. "Ad Hoc - MBWAY", "Ad Hoc - Dinheiro"), from
+     * when the popup let the admin pick a method. New rows use `AD_HOC_LABEL`
+     * instead. Kept so `render_method_cell()` still renders those old rows.
      */
     private const AD_HOC_LABEL_PREFIX = 'Ad Hoc - ';
+
+    /**
+     * Every "+ New Payment" entry is cash taken outside checkout, so this is
+     * the only Method value new ad hoc rows ever get — no picker, at
+     * Victor's request. Rendered with the Dinheiro icon (`render_method_cell()`).
+     */
+    private const AD_HOC_LABEL = 'Ad Hoc';
 
     private SubmissionStore $submissions;
     private SettingsRepository $settings;
@@ -149,8 +148,8 @@ class EntriesPage
                 'updateStatusError'    => __('Could not update the selected entries. Please try again.', 'ifthenpay-payments-for-ninja-forms'),
                 'deleteToastSuccess'   => __('Selected entries deleted.', 'ifthenpay-payments-for-ninja-forms'),
                 'statusToastSuccess'   => __('Selected entries updated.', 'ifthenpay-payments-for-ninja-forms'),
-                'selectedOne'          => __('selected', 'ifthenpay-payments-for-ninja-forms'),
-                'selectedMany'         => __('selected', 'ifthenpay-payments-for-ninja-forms'),
+                /* translators: 1: number of selected entries, 2: total number of entries */
+                'selectedOfTotal'      => __('%1$s selected out of %2$s', 'ifthenpay-payments-for-ninja-forms'),
                 'calendarPrevMonth'    => __('Previous month', 'ifthenpay-payments-for-ninja-forms'),
                 'calendarNextMonth'    => __('Next month', 'ifthenpay-payments-for-ninja-forms'),
                 'calendarToday'        => __('Today', 'ifthenpay-payments-for-ninja-forms'),
@@ -283,6 +282,7 @@ class EntriesPage
             'paginationHtml' => $pagination_html,
             'paged'          => $result['paged'],
             'counts'         => $counts,
+            'total'          => $result['total'],
             'totalLabel'     => $this->entries_range_label($result['paged'], $per_page, $result['total']),
         ]);
     }
@@ -296,7 +296,7 @@ class EntriesPage
      * arrives under `view_*` keys here (unlike the other AJAX handlers),
      * since a plain `form_id` key would be ambiguous with the view's own
      * "All forms" filter — every entry created here is filed under
-     * `SubmissionStore::AD_HOC_FORM_ID`, never a form the admin picks.
+     * `AdHocForm`'s hidden form, never a form the admin picks.
      */
     public function ajax_create_entry(): void
     {
@@ -331,22 +331,11 @@ class EntriesPage
             wp_send_json_error(['message' => __('Unknown status.', 'ifthenpay-payments-for-ninja-forms')], 400);
         }
 
-        $pay_method = sanitize_text_field(wp_unslash($_POST['pay_method'] ?? ''));
-
-        if ('' !== $pay_method && self::MANUAL_CASH_METHOD !== $pay_method && ! array_key_exists($pay_method, $this->method_catalog())) {
-            $pay_method = '';
-        }
-
-        // Stamped "Ad Hoc - {method}" — see `AD_HOC_LABEL_PREFIX` — so it's
-        // stored (not just displayed) that way, at Victor's request.
-        if ('' !== $pay_method) {
-            $method_label = self::MANUAL_CASH_METHOD === $pay_method ? self::MANUAL_CASH_LABEL : $pay_method;
-            $pay_method   = self::AD_HOC_LABEL_PREFIX . $method_label;
-        }
-
         $customer_name = sanitize_text_field(wp_unslash($_POST['customer_name'] ?? ''));
 
-        $ref = $this->submissions->create_manual($customer_name, $customer_email, $amount, $pay_method, $status);
+        // Every entry from this popup is cash taken outside checkout — no
+        // method picker, always stamped `AD_HOC_LABEL`.
+        $ref = $this->submissions->create_manual($customer_name, $customer_email, $amount, self::AD_HOC_LABEL, $status);
 
         if (null === $ref) {
             global $wpdb;
@@ -421,6 +410,7 @@ class EntriesPage
             'paginationHtml' => $pagination_html,
             'paged'          => $result['paged'],
             'counts'         => $counts,
+            'total'          => $result['total'],
             'totalLabel'     => $this->entries_range_label($result['paged'], $per_page, $result['total']),
         ]);
     }
@@ -497,6 +487,7 @@ class EntriesPage
             'updated'     => $updated,
             'status'      => $status,
             'counts'      => $counts,
+            'total'       => $total_result['total'],
             'totalLabel'  => $this->entries_range_label($paged, $per_page, $total_result['total']),
             'matchesView' => '' === $view_status || $view_status === $status,
         ]);
@@ -672,6 +663,21 @@ class EntriesPage
                         <a href="<?php echo esc_url($this->filtered_url([], true)); ?>" class="iftp-nf-reset-filters"><?php esc_html_e('Reset filters', 'ifthenpay-payments-for-ninja-forms'); ?></a>
                     </form>
 
+                    <div class="iftp-nf-bulk-actions" data-iftp-bulk-actions hidden>
+                        <button
+                            type="button"
+                            class="iftp-nf-bulk-actions-trigger"
+                            data-iftp-bulk-trigger
+                            aria-haspopup="listbox"
+                            aria-expanded="false"
+                        >
+                            <?php esc_html_e('Actions', 'ifthenpay-payments-for-ninja-forms'); ?>
+                            <svg class="iftp-nf-bulk-actions-arrow" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true">
+                                <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                        </button>
+                    </div>
+
                     <button
                         type="button"
                         class="iftp-nf-new-entry-trigger"
@@ -731,34 +737,16 @@ class EntriesPage
                     </table>
                 </div>
 
-                <div class="iftp-nf-entries-bulk-bar" data-iftp-bulk-bar hidden>
-                    <div class="iftp-nf-bulk-bar-left">
-                        <span class="iftp-nf-bulk-count" data-iftp-bulk-count></span>
-                        <button type="button" class="iftp-nf-bulk-cancel" data-iftp-bulk-cancel>
+                <div class="iftp-nf-entries-card-footer" data-iftp-entries-footer>
+                    <div class="iftp-nf-entries-footer-left">
+                        <span class="iftp-nf-entries-count" data-iftp-total-count data-total="<?php echo esc_attr((string) $total); ?>">
+                            <?php echo esc_html($this->entries_range_label($paged, $per_page, $total)); ?>
+                        </span>
+                        <span class="iftp-nf-bulk-count" data-iftp-bulk-count hidden></span>
+                        <button type="button" class="iftp-nf-bulk-cancel" data-iftp-bulk-cancel hidden>
                             <?php esc_html_e('Cancel', 'ifthenpay-payments-for-ninja-forms'); ?>
                         </button>
                     </div>
-
-                    <div class="iftp-nf-bulk-actions" data-iftp-bulk-actions>
-                        <button
-                            type="button"
-                            class="iftp-nf-bulk-actions-trigger"
-                            data-iftp-bulk-trigger
-                            aria-haspopup="listbox"
-                            aria-expanded="false"
-                        >
-                            <?php esc_html_e('Actions', 'ifthenpay-payments-for-ninja-forms'); ?>
-                            <svg class="iftp-nf-bulk-actions-arrow" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true">
-                                <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="iftp-nf-entries-card-footer">
-                    <span class="iftp-nf-entries-count" data-iftp-total-count>
-                        <?php echo esc_html($this->entries_range_label($paged, $per_page, $total)); ?>
-                    </span>
 
                     <div data-iftp-pagination><?php $this->render_pagination($paged, $pages); ?></div>
                 </div>
@@ -823,21 +811,6 @@ class EntriesPage
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                    </div>
-
-                    <div class="iftp-nf-form-field">
-                        <label for="iftp-nf-ne-method"><?php esc_html_e('Ad Hoc Method', 'ifthenpay-payments-for-ninja-forms'); ?></label>
-                        <select id="iftp-nf-ne-method" name="pay_method" class="iftp-nf-modal-select" data-iftp-enhance-select>
-                            <option value=""><?php esc_html_e('None', 'ifthenpay-payments-for-ninja-forms'); ?></option>
-                            <option value="<?php echo esc_attr(self::MANUAL_CASH_METHOD); ?>" data-icon="<?php echo esc_url(IFTP_NF_URL . 'assets/img/cash.svg'); ?>">
-                                <?php esc_html_e('Dinheiro', 'ifthenpay-payments-for-ninja-forms'); ?>
-                            </option>
-                            <?php foreach ($this->method_catalog() as $entity => $logo) : ?>
-                                <option value="<?php echo esc_attr($entity); ?>" data-icon="<?php echo esc_url($logo); ?>">
-                                    <?php echo esc_html($entity); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
                     </div>
 
                     <div class="iftp-nf-modal-actions">
@@ -1305,10 +1278,7 @@ class EntriesPage
                 <div class="iftp-nf-detail-item">
                     <span class="iftp-nf-detail-label"><?php esc_html_e('Form ID', 'ifthenpay-payments-for-ninja-forms'); ?></span>
                     <span class="iftp-nf-detail-value">
-                    <?php
-                    $detail_form_id = (int) $record['form_id'];
-                    echo esc_html(SubmissionStore::AD_HOC_FORM_ID === $detail_form_id ? $this->form_title($detail_form_id) : (string) $detail_form_id);
-                    ?>
+                    <?php echo esc_html((string) $record['form_id']); ?>
                     </span>
                 </div>
                 <div class="iftp-nf-detail-item">
@@ -1404,6 +1374,17 @@ class EntriesPage
     {
         if ('' === $pay_method) {
             echo '&mdash;';
+
+            return;
+        }
+
+        if (self::AD_HOC_LABEL === $pay_method) {
+            ?>
+            <span class="iftp-nf-method-pill">
+                <img src="<?php echo esc_url(IFTP_NF_URL . 'assets/img/cash.svg'); ?>" alt="" loading="lazy" />
+                <?php echo esc_html(self::AD_HOC_LABEL); ?>
+            </span>
+            <?php
 
             return;
         }
@@ -1504,10 +1485,6 @@ class EntriesPage
 
     private function form_title(int $form_id): string
     {
-        if (SubmissionStore::AD_HOC_FORM_ID === $form_id) {
-            return __('Ad Hoc Payments', 'ifthenpay-payments-for-ninja-forms');
-        }
-
         if (array_key_exists($form_id, $this->form_title_cache)) {
             return $this->form_title_cache[$form_id];
         }

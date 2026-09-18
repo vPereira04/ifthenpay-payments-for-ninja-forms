@@ -1086,33 +1086,56 @@
 	box-shadow: none !important;
 }
 
-/* Bulk-actions bar: its own row below the table (never between the header
-   and the table) — hidden via `[hidden]` (not just faded), so it takes up
-   no space at all until something is actually checked. */
+/* "Actions" bulk-actions trigger — lives in the header toolbar itself now,
+   next to "+ New Payment"/"Columns", hidden via `[hidden]` until a row is
+   checked (see `refreshBulkBar()` in entries.js), rather than living in its
+   own bar below the table, at Victor's request. Styled with the same blue
+   tint the dropdown menu uses for a hovered/active item, so it visibly reads
+   as "a selection unlocked this" rather than just another neutral toolbar
+   button. */
 
-.iftp-nf-entries-bulk-bar {
-	display: flex;
+.iftp-nf-bulk-actions-trigger {
+	display: inline-flex;
 	align-items: center;
-	justify-content: space-between;
-	gap: 10px;
-	padding: 10px 16px;
-	background: var(--iftp-nf-blue);
-	color: #fff;
-	opacity: 0;
-	transform: translateY(6px);
-	transition: opacity 0.18s ease, transform 0.18s ease;
+	gap: 8px;
+	box-sizing: border-box;
+	height: 32px;
+	padding: 0 12px;
+	border: 1px solid var(--iftp-nf-blue);
+	border-radius: 6px;
+	background: var(--iftp-nf-blue-tint);
+	color: var(--iftp-nf-blue);
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.15s ease;
 }
 
-.iftp-nf-entries-bulk-bar[hidden] {
-	display: none;
+.iftp-nf-bulk-actions-trigger:hover,
+.iftp-nf-bulk-actions-trigger:focus {
+	background: var(--iftp-nf-blue-tint-strong);
+	outline: none;
 }
 
-.iftp-nf-entries-bulk-bar.is-visible {
-	opacity: 1;
-	transform: translateY(0);
+.iftp-nf-bulk-actions-trigger:active {
+	background: var(--iftp-nf-blue-tint-strong);
 }
 
-.iftp-nf-bulk-bar-left {
+.iftp-nf-bulk-actions-arrow {
+	transition: transform 0.15s ease;
+}
+
+.iftp-nf-bulk-actions.is-open .iftp-nf-bulk-actions-arrow {
+	transform: rotate(180deg);
+}
+
+/* Footer "N selected out of Z / Cancel" — replaces the plain range label in
+   place (see `data-iftp-bulk-count`/`data-iftp-bulk-cancel` in
+   EntriesPage.php) and turns the whole footer blue while a selection is
+   active, instead of a separate bar appearing below the table, at Victor's
+   request. */
+
+.iftp-nf-entries-footer-left {
 	display: flex;
 	align-items: center;
 	gap: 12px;
@@ -1121,6 +1144,7 @@
 .iftp-nf-bulk-count {
 	font-size: 13px;
 	font-weight: 600;
+	color: #fff;
 }
 
 .iftp-nf-bulk-cancel {
@@ -1140,39 +1164,6 @@
 
 .iftp-nf-bulk-cancel:active {
 	color: rgba(255, 255, 255, 0.65);
-}
-
-.iftp-nf-bulk-actions-trigger {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-	height: 32px;
-	padding: 0 12px;
-	border: none;
-	border-radius: 6px;
-	background: #fff;
-	color: var(--iftp-nf-gray-dark);
-	font-size: 13px;
-	font-weight: 600;
-	cursor: pointer;
-	transition: background 0.15s ease;
-}
-
-.iftp-nf-bulk-actions-trigger:hover,
-.iftp-nf-bulk-actions-trigger:focus {
-	background: var(--iftp-nf-gray-light);
-}
-
-.iftp-nf-bulk-actions-trigger:active {
-	background: var(--iftp-nf-gray-light);
-}
-
-.iftp-nf-bulk-actions-arrow {
-	transition: transform 0.15s ease;
-}
-
-.iftp-nf-bulk-actions.is-open .iftp-nf-bulk-actions-arrow {
-	transform: rotate(180deg);
 }
 
 /* Shared custom-dropdown look — the bulk "Actions" menu, and the "All
@@ -1547,11 +1538,67 @@
 	gap: 10px;
 	padding: 10px 16px;
 	background: #fff;
+	transition: background 0.15s ease;
+}
+
+.iftp-nf-entries-card-footer.is-selecting {
+	background: var(--iftp-nf-blue);
 }
 
 .iftp-nf-entries-count {
 	color: var(--iftp-nf-gray-dark);
 	font-size: 13px;
+}
+
+/* Pagination reversed to read against the blue "is-selecting" footer instead
+   of its usual white one — same shapes, light-on-dark instead of
+   dark-on-light, at Victor's request. */
+.iftp-nf-entries-card-footer.is-selecting .iftp-nf-page-btn,
+.iftp-nf-entries-card-footer.is-selecting .iftp-nf-page-number {
+	border-color: rgba(255, 255, 255, 0.4);
+	background: transparent;
+	color: rgba(255, 255, 255, 0.85);
+}
+
+.iftp-nf-entries-card-footer.is-selecting .iftp-nf-page-btn:hover,
+.iftp-nf-entries-card-footer.is-selecting a.iftp-nf-page-number:hover {
+	border-color: #fff;
+	background: rgba(255, 255, 255, 0.12);
+	color: #fff;
+	box-shadow: none;
+}
+
+.iftp-nf-entries-card-footer.is-selecting .iftp-nf-page-btn:focus,
+.iftp-nf-entries-card-footer.is-selecting a.iftp-nf-page-number:focus {
+	border-color: #fff !important;
+	color: #fff !important;
+	box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35) !important;
+}
+
+.iftp-nf-entries-card-footer.is-selecting .iftp-nf-page-number.is-current {
+	background: #fff;
+	border-color: #fff;
+	color: var(--iftp-nf-blue);
+	box-shadow: none;
+}
+
+.iftp-nf-entries-card-footer.is-selecting .iftp-nf-page-ellipsis {
+	color: rgba(255, 255, 255, 0.85);
+}
+
+.iftp-nf-entries-card-footer.is-selecting .iftp-nf-page-jump-input {
+	border-color: rgba(255, 255, 255, 0.4) !important;
+	background: transparent;
+	color: #fff !important;
+}
+
+.iftp-nf-entries-card-footer.is-selecting .iftp-nf-page-jump-input::placeholder {
+	color: rgba(255, 255, 255, 0.7);
+}
+
+.iftp-nf-entries-card-footer.is-selecting .iftp-nf-page-jump-input:focus {
+	border-color: #fff !important;
+	box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35) !important;
 }
 
 .iftp-nf-entries-table-wrap {
@@ -2472,7 +2519,7 @@ button.iftp-nf-row-action--delete.button-link:focus {
 	.iftp-nf-entry-row,
 	.iftp-nf-entry-row.is-removing,
 	.iftp-nf-entry-details.iftp-nf-details-anim td,
-	.iftp-nf-entries-bulk-bar,
+	.iftp-nf-entries-card-footer,
 	.iftp-nf-entries-table tbody tr.iftp-nf-entry-row,
 	.iftp-nf-status-badge,
 	.iftp-nf-status-tab .count,
