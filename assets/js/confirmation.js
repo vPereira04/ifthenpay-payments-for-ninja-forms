@@ -168,7 +168,7 @@
 				saveButton.classList.add( 'is-saving' );
 			}
 
-			post( 'iftp_nf_save_confirmation_settings', {
+			var params = {
 				paid_type: form.querySelector( '#iftp-nf-confirmation-paid-type' ).value,
 				paid_message: form.querySelector( '#iftp-nf-confirmation-paid-message' ).value,
 				paid_page_id: form.querySelector( '#iftp-nf-confirmation-paid-page' ).value,
@@ -177,7 +177,16 @@
 				pending_message: form.querySelector( '#iftp-nf-confirmation-pending-message' ).value,
 				failed_message: form.querySelector( '#iftp-nf-confirmation-failed-message' ).value,
 				cancelled_message: form.querySelector( '#iftp-nf-confirmation-cancelled-message' ).value,
-			} ).then( function ( res ) {
+			};
+
+			[ 'paid', 'pending', 'failed', 'cancelled' ].forEach( function ( status ) {
+				var id = '#iftp-nf-confirmation-' + status + '-title';
+
+				params[ status + '_title' ] = form.querySelector( id ).value;
+				params[ status + '_title_shown' ] = form.querySelector( id + '-shown' ).checked ? '1' : '';
+			} );
+
+			post( 'iftp_nf_save_confirmation_settings', params ).then( function ( res ) {
 				if ( saveButton ) {
 					saveButton.disabled = false;
 					saveButton.classList.remove( 'is-saving' );

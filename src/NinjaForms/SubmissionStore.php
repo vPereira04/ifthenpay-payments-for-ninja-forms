@@ -49,27 +49,20 @@ class SubmissionStore
     private const OPTION_PREFIX = 'iftp_nf_payment_';
 
     /**
-     * Short-lived cache so a burst of page/filter clicks doesn't re-read the
-     * full table every time. Every write clears it immediately, so nothing
-     * here is ever stale.
+     * Object-cache group for index reads. Every write bumps its
+     * `last_changed` token, so a cached page/filter result is never stale.
      */
-    private const CACHE_KEY = 'iftp_nf_payments_all';
-    private const CACHE_TTL = 60;
+    private const CACHE_GROUP = 'iftp_nf_payments';
 
     /**
+     * Schema revision of the index table, stored in `iftp_nf_db_version`.
      * Records live as `wp_option` rows, which can't be filtered/sorted in
-     * SQL — this indexed table mirrors the key fields so `query_index()` can
-     * do that work in SQL instead of loading every record into PHP.
+     * SQL — the table mirrors the key fields so `query_index()` can.
+     *
+     * Rev 2 moved every "+ New Payment" entry onto a real Ninja Forms
+     * submission (`migrate_legacy_adhoc_record()`), at Victor's request.
      */
-    private const INDEX_VERSION_OPTION = 'iftp_nf_payments_index_version';
-
-    /**
-     * v2 migrates every "+ New Payment" entry out of its own table (where it
-     * lived tagged with `LEGACY_AD_HOC_FORM_ID`) into a real Ninja Forms
-     * submission on `AdHocForm`'s form, at Victor's request — see
-     * `migrate_legacy_adhoc_record()`.
-     */
-    private const INDEX_VERSION = 2;
+    private const SCHEMA_REVISION = 2;
 
     /**
      * Migration-only — the "form_id" every "+ New Payment" entry was tagged
@@ -187,7 +180,10 @@ class SubmissionStore
 
         if (! $indexed) {
             delete_option(self::option_name($ref));
-            Ninja_Forms()->form($form_id)->sub($submission['sub_id'])->get()->delete();
+
+            if (function_exists('Ninja_Forms')) {
+                Ninja_Forms()->form($form_id)->sub($submission['sub_id'])->get()->delete();
+            }
 
             return null;
         }
@@ -414,33 +410,51 @@ class SubmissionStore
     {
         global $wpdb;
 
-        $prefix = self::OPTION_PREFIX;
-        $names = $wpdb->get_col(
-            $wpdb->prepare(
-                "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",
-                $wpdb->esc_like($prefix) . '%'
-            )
-        );
+        $prefix    = self::OPTION_PREFIX;
+        $cache_key = self::cache_key('all_refs');
+        $names     = wp_cache_get($cache_key, self::CACHE_GROUP);
+
+        if (! is_array($names)) {
+            $names = $wpdb->get_col(
+                $wpdb->prepare(
+                    'SELECT option_name FROM %i WHERE option_name LIKE %s',
+                    $wpdb->options,
+                    $wpdb->esc_like($prefix) . '%'
+                )
+            );
+            wp_cache_set($cache_key, $names, self::CACHE_GROUP);
+        }
 
         return array_map(static fn (string $name): string => substr($name, strlen($prefix)), $names);
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * Pending refs created before `$cutoff`, for the daily expiry sweep.
+     *
+     * @return array<int, string>
      */
-    public function get_all(): array
+    public function pending_refs_before(int $cutoff): array
     {
-        $cached = get_transient(self::CACHE_KEY);
+        global $wpdb;
 
-        if (is_array($cached)) {
-            return $cached;
+        self::maybe_build_index();
+
+        $cache_key = self::cache_key('pending_before', [$cutoff]);
+        $refs      = wp_cache_get($cache_key, self::CACHE_GROUP);
+
+        if (! is_array($refs)) {
+            $refs = $wpdb->get_col(
+                $wpdb->prepare(
+                    'SELECT ref FROM %i WHERE status = %s AND created_at < %d',
+                    self::index_table_name(),
+                    self::STATUS_PENDING,
+                    $cutoff
+                )
+            );
+            wp_cache_set($cache_key, $refs, self::CACHE_GROUP);
         }
 
-        $records = array_values(array_filter(array_map([$this, 'get'], $this->get_all_refs())));
-
-        set_transient(self::CACHE_KEY, $records, self::CACHE_TTL);
-
-        return $records;
+        return $refs;
     }
 
     /**
@@ -454,10 +468,17 @@ class SubmissionStore
 
         self::maybe_build_index();
 
-        return array_map(
-            'intval',
-            $wpdb->get_col('SELECT DISTINCT form_id FROM ' . self::index_table_name() . ' ORDER BY form_id ASC')
-        );
+        $cache_key = self::cache_key('form_ids');
+        $form_ids  = wp_cache_get($cache_key, self::CACHE_GROUP);
+
+        if (! is_array($form_ids)) {
+            $form_ids = $wpdb->get_col(
+                $wpdb->prepare('SELECT DISTINCT form_id FROM %i ORDER BY form_id ASC', self::index_table_name())
+            );
+            wp_cache_set($cache_key, $form_ids, self::CACHE_GROUP);
+        }
+
+        return array_map('intval', $form_ids);
     }
 
     /**
@@ -473,14 +494,21 @@ class SubmissionStore
 
         self::maybe_build_index();
 
-        $table = self::index_table_name();
-
         [$where, $params] = $this->build_where($args, true);
         $where_sql = [] === $where ? '1=1' : implode(' AND ', $where);
+        $params    = array_merge([self::index_table_name()], $params);
 
-        $count_sql = "SELECT COUNT(*) FROM {$table} WHERE {$where_sql}";
-        $total = (int) ([] === $params ? $wpdb->get_var($count_sql) : $wpdb->get_var($wpdb->prepare($count_sql, $params)));
+        $count_key = self::cache_key('count', $params);
+        $total     = wp_cache_get($count_key, self::CACHE_GROUP);
 
+        if (false === $total) {
+            // $where_sql only holds placeholders from build_where().
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $total = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM %i WHERE {$where_sql}", ...$params));
+            wp_cache_set($count_key, $total, self::CACHE_GROUP);
+        }
+
+        $total    = (int) $total;
         $per_page = max(1, (int) ($args['per_page'] ?? 20));
         $pages    = max(1, (int) ceil($total / $per_page));
         $paged    = min($pages, max(1, (int) ($args['paged'] ?? 1)));
@@ -496,9 +524,17 @@ class SubmissionStore
         $orderby = $orderby_map[$args['orderby'] ?? ''] ?? 'created_at';
         $order   = 'asc' === strtolower((string) ($args['order'] ?? '')) ? 'ASC' : 'DESC';
 
-        $select_sql    = "SELECT ref FROM {$table} WHERE {$where_sql} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
         $select_params = array_merge($params, [$per_page, $offset]);
-        $refs          = $wpdb->get_col($wpdb->prepare($select_sql, $select_params));
+        $refs_key      = self::cache_key('refs', array_merge($select_params, [$orderby, $order]));
+        $refs          = wp_cache_get($refs_key, self::CACHE_GROUP);
+
+        if (! is_array($refs)) {
+            // $where_sql only holds placeholders, and ORDER BY comes from the whitelist above.
+            // PHPCS can't count the spread args, so it also misreads the placeholder count.
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
+            $refs = $wpdb->get_col($wpdb->prepare("SELECT ref FROM %i WHERE {$where_sql} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d", ...$select_params));
+            wp_cache_set($refs_key, $refs, self::CACHE_GROUP);
+        }
 
         $items = array_values(array_filter(array_map([$this, 'get'], $refs)));
 
@@ -522,7 +558,7 @@ class SubmissionStore
     {
         $counts = ['' => 0];
 
-        foreach ($this->status_counts_for_table(self::index_table_name(), $this->build_where($args, false)) as $status => $count) {
+        foreach ($this->status_counts_for_table($this->build_where($args, false)) as $status => $count) {
             $counts[$status] = ($counts[$status] ?? 0) + $count;
             $counts[''] += $count;
         }
@@ -540,15 +576,23 @@ class SubmissionStore
      * @param array{0: array<int, string>, 1: array<int, mixed>} $where
      * @return array<string, int>
      */
-    private function status_counts_for_table(string $table, array $where): array
+    private function status_counts_for_table(array $where): array
     {
         global $wpdb;
 
         [$clauses, $params] = $where;
         $where_sql = [] === $clauses ? '1=1' : implode(' AND ', $clauses);
+        $params    = array_merge([self::index_table_name()], $params);
 
-        $sql  = "SELECT status, COUNT(*) AS total FROM {$table} WHERE {$where_sql} GROUP BY status";
-        $rows = [] === $params ? $wpdb->get_results($sql) : $wpdb->get_results($wpdb->prepare($sql, $params));
+        $cache_key = self::cache_key('status_counts', $params);
+        $rows      = wp_cache_get($cache_key, self::CACHE_GROUP);
+
+        if (! is_array($rows)) {
+            // $where_sql only holds placeholders from build_where().
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $rows = $wpdb->get_results($wpdb->prepare("SELECT status, COUNT(*) AS total FROM %i WHERE {$where_sql} GROUP BY status", ...$params));
+            wp_cache_set($cache_key, $rows, self::CACHE_GROUP);
+        }
 
         $counts = [];
 
@@ -739,7 +783,15 @@ class SubmissionStore
 
     private function invalidate_all_cache(): void
     {
-        delete_transient(self::CACHE_KEY);
+        wp_cache_set_last_changed(self::CACHE_GROUP);
+    }
+
+    /**
+     * @param array<int, mixed> $args
+     */
+    private static function cache_key(string $name, array $args = []): string
+    {
+        return $name . ':' . md5((string) wp_json_encode($args)) . ':' . wp_cache_get_last_changed(self::CACHE_GROUP);
     }
 
     private static function option_name(string $ref): string
@@ -755,24 +807,12 @@ class SubmissionStore
     }
 
     /**
-     * Migration-only — the table "+ New Payment" entries lived in before v2.
-     * Dropped once every row in it has been migrated (`maybe_build_index()`);
-     * never written to again.
-     */
-    private static function legacy_adhoc_index_table_name(): string
-    {
-        global $wpdb;
-
-        return $wpdb->prefix . 'iftp_nf_adhoc_payments_index';
-    }
-
-    /**
      * Creates (or upgrades) the index table the first time it's needed. The
      * version guard keeps the rebuild scan from running on every page load.
      */
     public static function maybe_build_index(): void
     {
-        if ((int) get_option(self::INDEX_VERSION_OPTION, 0) === self::INDEX_VERSION) {
+        if (version_compare((string) get_option('iftp_nf_db_version', '0'), (string) self::SCHEMA_REVISION, '>=')) {
             return;
         }
 
@@ -817,10 +857,13 @@ class SubmissionStore
             }
         }
 
-        $wpdb->query('DROP TABLE IF EXISTS ' . self::legacy_adhoc_index_table_name());
+        // The version used to live under these names. The old ad hoc table
+        // itself is left for uninstall.php to drop.
+        delete_option('iftp_nf_payments_index_version');
         delete_option('iftp_nf_adhoc_payments_index_version');
 
-        update_option(self::INDEX_VERSION_OPTION, self::INDEX_VERSION, false);
+        $store->invalidate_all_cache();
+        update_option('iftp_nf_db_version', self::SCHEMA_REVISION, false);
     }
 
     /**

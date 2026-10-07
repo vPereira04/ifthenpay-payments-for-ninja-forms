@@ -54,7 +54,8 @@ class Controller
 
     public function connect_backoffice(): void
     {
-        $this->guard();
+        check_ajax_referer(self::NONCE_ACTION, 'nonce');
+        $this->authorize();
 
         $backoffice_key = sanitize_text_field(wp_unslash($_POST['backoffice_key'] ?? ''));
 
@@ -80,7 +81,8 @@ class Controller
      */
     public function select_gateway_key(): void
     {
-        $this->guard();
+        check_ajax_referer(self::NONCE_ACTION, 'nonce');
+        $this->authorize();
 
         $gateway_key = sanitize_text_field(wp_unslash($_POST['gateway_key'] ?? ''));
 
@@ -95,30 +97,34 @@ class Controller
 
     public function disconnect_backoffice(): void
     {
-        $this->guard();
+        check_ajax_referer(self::NONCE_ACTION, 'nonce');
+        $this->authorize();
 
         $this->settings->delete_all();
+        IfthenpayClient::clear_cache();
 
         wp_send_json_success();
     }
 
     public function refresh_methods(): void
     {
-        $this->guard();
+        check_ajax_referer(self::NONCE_ACTION, 'nonce');
+        $this->authorize();
 
-        $this->sync->sync();
+        $this->sync->sync(true);
 
         wp_send_json_success(['table_html' => $this->methods_field->render()]);
     }
 
     public function save_settings(): void
     {
-        $this->guard();
+        check_ajax_referer(self::NONCE_ACTION, 'nonce');
+        $this->authorize();
 
         $enabled_entities = array_map('sanitize_text_field', wp_unslash((array) ($_POST['enabled_methods'] ?? [])));
         $default_method   = sanitize_text_field(wp_unslash($_POST['default_method'] ?? ''));
         $description      = sanitize_text_field(wp_unslash($_POST['description'] ?? ''));
-        $expiry_days      = (int) ($_POST['expiry_days'] ?? 3);
+        $expiry_days      = absint(wp_unslash($_POST['expiry_days'] ?? 3));
 
         $methods = $this->settings->get_methods();
 
@@ -146,10 +152,11 @@ class Controller
      */
     public function save_confirmation_settings(): void
     {
-        $this->guard();
+        check_ajax_referer(self::NONCE_ACTION, 'nonce');
+        $this->authorize();
 
         $paid_type       = sanitize_text_field(wp_unslash($_POST['paid_type'] ?? ''));
-        $paid_page_id    = (int) ($_POST['paid_page_id'] ?? 0);
+        $paid_page_id    = absint(wp_unslash($_POST['paid_page_id'] ?? 0));
         $paid_url        = esc_url_raw(wp_unslash($_POST['paid_url'] ?? ''));
         $show_entry_data = ! empty($_POST['show_entry_data']);
 
@@ -167,12 +174,24 @@ class Controller
         $this->settings->set_confirmation_message(SubmissionStore::STATUS_FAILED, $failed_message);
         $this->settings->set_confirmation_message(SubmissionStore::STATUS_CANCELLED, $cancelled_message);
 
+        $titles = [];
+
+        foreach ([SubmissionStore::STATUS_PAID, SubmissionStore::STATUS_PENDING, SubmissionStore::STATUS_FAILED, SubmissionStore::STATUS_CANCELLED] as $status) {
+            $titles[$status] = [
+                'text'  => sanitize_text_field(wp_unslash($_POST[$status . '_title'] ?? '')),
+                'shown' => ! empty($_POST[$status . '_title_shown']),
+            ];
+        }
+
+        $this->settings->set_confirmation_titles($titles);
+
         wp_send_json_success();
     }
 
     public function request_activation(): void
     {
-        $this->guard();
+        check_ajax_referer(self::NONCE_ACTION, 'nonce');
+        $this->authorize();
 
         $entity      = strtoupper(sanitize_text_field(wp_unslash($_POST['entity'] ?? '')));
         $gateway_key = $this->settings->get_gateway_key();
@@ -208,10 +227,8 @@ class Controller
         wp_send_json_success();
     }
 
-    private function guard(): void
+    private function authorize(): void
     {
-        check_ajax_referer(self::NONCE_ACTION, 'nonce');
-
         if (! current_user_can('manage_options')) {
             wp_send_json_error(['message' => __('You are not allowed to do this.', 'ifthenpay-payments-for-ninja-forms')], 403);
         }

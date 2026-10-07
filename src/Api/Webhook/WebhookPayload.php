@@ -36,6 +36,7 @@ class WebhookPayload
 
     public static function from_request(): self
     {
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended -- Server-to-server callback from ifthenpay; nonces don't apply. WebhookValidator checks the anti-phishing key and amount.
         return new self(
             sanitize_text_field(wp_unslash($_GET['ref'] ?? '')),
             sanitize_text_field(wp_unslash($_GET['apk'] ?? '')),
@@ -44,6 +45,7 @@ class WebhookPayload
             sanitize_text_field(wp_unslash($_GET['req'] ?? '')),
             sanitize_text_field(wp_unslash($_GET['status'] ?? ''))
         );
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended
     }
 
     public function is_failure_notice(): bool

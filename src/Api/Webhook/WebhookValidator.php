@@ -21,7 +21,9 @@ class WebhookValidator
      */
     public function is_valid(WebhookPayload $payload, array $record): bool
     {
-        if (base64_decode($payload->apk(), true) !== $record['gateway_key']) {
+        $gateway_key = (string) base64_decode($payload->apk(), true);
+
+        if ('' === $gateway_key || ! hash_equals((string) $record['gateway_key'], $gateway_key)) {
             return false;
         }
 

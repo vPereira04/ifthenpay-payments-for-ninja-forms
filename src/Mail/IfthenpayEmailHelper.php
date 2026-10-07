@@ -15,8 +15,7 @@ if (! defined('ABSPATH')) {
  */
 final class IfthenpayEmailHelper
 {
-    public const SUPPORT_EMAIL = 'v.pereira.contacto@gmail.com';
-    // public const SUPPORT_EMAIL = 'suporte@ifthenpay.com';
+    public const SUPPORT_EMAIL = 'suporte@ifthenpay.com';
 
     private function __construct()
     {
@@ -37,24 +36,24 @@ final class IfthenpayEmailHelper
      */
     public static function send_activation_email(array $data): bool
     {
-        $entity  = strtoupper(sanitize_text_field($data['entity'] ?? ''));
-        $site_url = esc_url_raw($data['site_url'] ?? home_url('/'));
+        $entity  = strtoupper(sanitize_text_field($data['entity']));
+        $site_url = esc_url_raw($data['site_url']);
         $recipient = self::get_support_email($data);
 
         $subject = sprintf('[dev_ifthenpay] [%s]: Ativacao de Servico', $entity);
 
         $items = [
-            'Chave de acesso ao backoffice:' => esc_html($data['backoffice_key'] ?? ''),
-            'Gateway Key:'                   => esc_html($data['gateway_key'] ?? ''),
-            'Email Cliente:'                 => esc_html($data['customer_email'] ?? ''),
+            'Chave de acesso ao backoffice:' => esc_html($data['backoffice_key']),
+            'Gateway Key:'                   => esc_html($data['gateway_key']),
+            'Email Cliente:'                 => esc_html($data['customer_email']),
             'Metodo a ativar:'               => esc_html($entity),
             'Loja online:'                   => esc_url($site_url),
             'Plataforma ecommerce:'          => sprintf(
                 'WordPress %s / Ninja Forms v%s',
-                esc_html($data['wp_version'] ?? ''),
-                esc_html($data['ninja_forms_version'] ?? '')
+                esc_html($data['wp_version']),
+                esc_html($data['ninja_forms_version'])
             ),
-            'Versao do Modulo ifthenpay:'    => esc_html($data['plugin_version'] ?? ''),
+            'Versao do Modulo ifthenpay:'    => esc_html($data['plugin_version']),
             'Atualizar Conta Cliente:'        => 'Apos adicionar o metodo nao precisa tomar mais nenhuma acao, este metodo ficara disponivel para selecao na pagina de configuracao da extensao.',
         ];
 
@@ -72,7 +71,7 @@ final class IfthenpayEmailHelper
         ">
             <h2 style="margin-top: 0; font-size: 20px; line-height: 1.2;">
                 Ativar metodo de pagamento para a Gateway
-                <span style="color: #d32f2f;"><?php echo esc_html($data['gateway_key'] ?? ''); ?></span>
+                <span style="color: #d32f2f;"><?php echo esc_html($data['gateway_key']); ?></span>
             </h2>
 
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse: collapse;">
@@ -98,7 +97,7 @@ final class IfthenpayEmailHelper
         $host = wp_parse_url($site_url, PHP_URL_HOST);
         $headers = [
             'Content-Type: text/html; charset=UTF-8',
-            'From: ' . esc_html($data['site_name'] ?? '') . ' <no-reply@' . $host . '>',
+            'From: ' . esc_html($data['site_name']) . ' <no-reply@' . $host . '>',
         ];
 
         return wp_mail($recipient, $subject, $body, $headers);

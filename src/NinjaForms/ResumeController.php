@@ -64,7 +64,7 @@ class ResumeController
 
             $action_class = Ninja_Forms()->actions[$type];
 
-            if (! method_exists($action_class, 'process')) {
+            if (! is_object($action_class) || ! method_exists($action_class, 'process')) {
                 $processed[] = $action['id'];
                 continue;
             }
@@ -108,7 +108,7 @@ class ResumeController
      */
     private function timing_and_priority(string $type): array
     {
-        if ('' === $type || ! isset(Ninja_Forms()->actions[$type])) {
+        if ('' === $type || ! function_exists('Ninja_Forms') || ! isset(Ninja_Forms()->actions[$type])) {
             return ['', 0];
         }
 

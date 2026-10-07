@@ -32,6 +32,7 @@ class SettingsRepository
     private const OPTION_CONFIRMATION_PENDING_MESSAGE   = 'iftp_nf_confirmation_pending_message';
     private const OPTION_CONFIRMATION_FAILED_MESSAGE    = 'iftp_nf_confirmation_failed_message';
     private const OPTION_CONFIRMATION_CANCELLED_MESSAGE = 'iftp_nf_confirmation_cancelled_message';
+    private const OPTION_CONFIRMATION_TITLES            = 'iftp_nf_confirmation_titles';
 
     public const CONFIRMATION_TYPE_POPUP = 'popup';
     public const CONFIRMATION_TYPE_PAGE  = 'page';
@@ -89,13 +90,48 @@ class SettingsRepository
     }
 
     /**
+     * Rows saved by an older build can miss newer keys, so I fill in the
+     * defaults here and every caller can rely on the full shape.
+     *
      * @return array<int, array{entity: string, alias: string, logo: string, enabled: bool, account: string, position: int}>
      */
     public function get_methods(): array
     {
+        $defaults = ['entity' => '', 'alias' => '', 'logo' => '', 'enabled' => false, 'account' => '', 'position' => 0];
+
+        /**
+         * Stored rows, each topped up with the default keys.
+         *
+         * @var array<int, array{entity: string, alias: string, logo: string, enabled: bool, account: string, position: int}> $methods
+         */
+        $methods = array_map(static fn ($method): array => (array) $method + $defaults, $this->raw_methods());
+
+        return $methods;
+    }
+
+    /**
+     * True when a stored row predates a field we now need (no `logo` key,
+     * or an empty alias from before I had the catalog's field names right).
+     */
+    public function has_outdated_methods(): bool
+    {
+        foreach ($this->raw_methods() as $method) {
+            if (! is_array($method) || ! array_key_exists('logo', $method) || '' === (string) ($method['alias'] ?? '')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function raw_methods(): array
+    {
         $methods = get_option(self::OPTION_METHODS, []);
 
-        return is_array($methods) ? $methods : [];
+        return is_array($methods) ? array_values($methods) : [];
     }
 
     /**
@@ -114,7 +150,7 @@ class SettingsRepository
         $enabled = [];
 
         foreach ($this->get_methods() as $method) {
-            if (! empty($method['enabled']) && '' !== ($method['account'] ?? '')) {
+            if ($method['enabled'] && '' !== $method['account']) {
                 $enabled[] = [
                     'entity'  => (string) $method['entity'],
                     'account' => (string) $method['account'],
@@ -196,6 +232,7 @@ class SettingsRepository
         delete_option(self::OPTION_CONFIRMATION_PENDING_MESSAGE);
         delete_option(self::OPTION_CONFIRMATION_FAILED_MESSAGE);
         delete_option(self::OPTION_CONFIRMATION_CANCELLED_MESSAGE);
+        delete_option(self::OPTION_CONFIRMATION_TITLES);
     }
 
     public function get_paid_confirmation_type(): string
@@ -286,6 +323,32 @@ class SettingsRepository
         }
 
         update_option($option, $message);
+    }
+
+    /**
+     * The popup title for one status: `text` (empty means the default
+     * title) and whether it's shown. Titles stay hidden until an admin
+     * turns them on.
+     *
+     * @return array{text: string, shown: bool}
+     */
+    public function get_confirmation_title(string $status): array
+    {
+        $titles = get_option(self::OPTION_CONFIRMATION_TITLES, []);
+        $title  = is_array($titles) && is_array($titles[$status] ?? null) ? $titles[$status] : [];
+
+        return [
+            'text'  => (string) ($title['text'] ?? ''),
+            'shown' => ! empty($title['shown']),
+        ];
+    }
+
+    /**
+     * @param array<string, array{text: string, shown: bool}> $titles Keyed by status.
+     */
+    public function set_confirmation_titles(array $titles): void
+    {
+        update_option(self::OPTION_CONFIRMATION_TITLES, $titles);
     }
 
     private static function confirmation_message_option(string $status): ?string

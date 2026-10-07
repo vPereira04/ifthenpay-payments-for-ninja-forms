@@ -33,7 +33,7 @@ class GatewaySync
      */
     public function connect(string $backoffice_key): bool
     {
-        $rows = $this->client->get_gateway_keys($backoffice_key);
+        $rows = $this->client->get_gateway_keys($backoffice_key, true);
 
         if ([] === $rows) {
             return false;
@@ -44,7 +44,7 @@ class GatewaySync
         $gateway_keys = array_map([$this, 'extract_gateway_key'], $rows);
         $this->settings->set_gateway_keys($gateway_keys);
         $this->settings->set_gateway_key($gateway_keys[0]);
-        $this->settings->set_methods($this->build_methods($rows[0]));
+        $this->settings->set_methods($this->build_methods($rows[0], true));
 
         return true;
     }
@@ -52,11 +52,11 @@ class GatewaySync
     /**
      * Re-fetches the Gateway Key list and rebuilds the methods table for
      * whichever key is selected, falling back to the first row if it's no
-     * longer valid. Safe to call on every settings-page render.
+     * longer valid. $fresh skips the API caches (the Refresh button).
      */
-    public function sync(): bool
+    public function sync(bool $fresh = false): bool
     {
-        $rows = $this->client->get_gateway_keys($this->settings->get_backoffice_key());
+        $rows = $this->client->get_gateway_keys($this->settings->get_backoffice_key(), $fresh);
 
         if ([] === $rows) {
             return false;
@@ -73,7 +73,7 @@ class GatewaySync
         }
 
         $row = $this->find_row_for_gateway_key($rows, $gateway_key);
-        $this->settings->set_methods($this->build_methods($row ?? []));
+        $this->settings->set_methods($this->build_methods($row ?? [], $fresh));
 
         return true;
     }
@@ -112,13 +112,7 @@ class GatewaySync
             return true;
         }
 
-        foreach ($this->settings->get_methods() as $method) {
-            if (! array_key_exists('logo', $method) || '' === ($method['alias'] ?? '')) {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->settings->has_outdated_methods();
     }
 
     /**
@@ -132,9 +126,9 @@ class GatewaySync
      * @param array<string, mixed> $gateway_row
      * @return array<int, array{entity: string, alias: string, logo: string, enabled: bool, account: string, position: int}>
      */
-    private function build_methods(array $gateway_row): array
+    private function build_methods(array $gateway_row, bool $fresh = false): array
     {
-        $catalog = $this->client->get_available_methods();
+        $catalog = $this->client->get_available_methods($fresh);
         $existing = array_column($this->settings->get_methods(), null, 'entity');
         $methods = [];
 
@@ -160,6 +154,9 @@ class GatewaySync
         return $methods;
     }
 
+    /**
+     * @param array<string, mixed> $row
+     */
     private function extract_gateway_key(array $row): string
     {
         return (string) ($row['GatewayKey'] ?? $row['gatewayKey'] ?? $row['Chave'] ?? '');
@@ -187,6 +184,8 @@ class GatewaySync
      *
      * @return string The normalized `ENTITY|ACCOUNT` segment, or '' if this
      *                 method isn't provisioned on this gateway row.
+     *
+     * @param array<string, mixed> $row
      */
     private function resolve_account(array $row, string $entity): string
     {

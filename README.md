@@ -15,7 +15,9 @@ Adds ifthenpay payment methods to Ninja Forms: cards, wallets, and local payment
 - [Frequently Asked Questions](#frequently-asked-questions)
 - [External Services](#external-services)
 - [Screenshots](#screenshots)
+- [Security](#security)
 - [Support](#support)
+- [Changelog](#changelog)
 
 ### Description
 
@@ -148,6 +150,10 @@ Below are screenshots demonstrating key features and interfaces of the plugin:
 9. **(Admin Only) Payment Entries**
    ![Payment Entries](.wordpress-org/screenshot-9.png)
 
+### Security
+
+Please report security issues privately to [suporte@ifthenpay.com](mailto:suporte@ifthenpay.com) with "Security" in the subject line, not in the public support forum. See [SECURITY.md](SECURITY.md) for what to include and what happens next.
+
 ### Support
 
 For assistance use the [WordPress.org support forum](https://wordpress.org/support/plugin/ifthenpay-payments-for-ninja-forms/):
@@ -161,3 +167,11 @@ Commercial helpdesk available (no direct email required): [helpdesk.ifthenpay.co
 
 - **ifthenpay support**: [suporte@ifthenpay.com](mailto:suporte@ifthenpay.com)
 - **Ninja Forms docs**: [Ninja Forms docs](https://ninjaforms.com/docs/)
+
+### Changelog
+
+Releases that fix a security issue say so in their entry, prefixed with **Security:**.
+
+#### 1.0.0
+
+- Initial public release: ifthenpay Pay by Link gateway for Ninja Forms' Collect Payment action, webhook-confirmed payment status, ifthenpay Entries admin screen, configurable per-outcome confirmation behavior, and automatic expiry labeling of stale pending payments.

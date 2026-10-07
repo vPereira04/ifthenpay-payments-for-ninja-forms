@@ -20,6 +20,7 @@ if (! defined('ABSPATH')) {
 class AdHocForm
 {
     private const OPTION = 'iftp_nf_adhoc_form';
+    private const CACHE_GROUP = 'iftp_nf';
 
     private const NAME_FIELD_KEY  = 'iftp_adhoc_name';
     private const EMAIL_FIELD_KEY = 'iftp_adhoc_email';
@@ -89,10 +90,28 @@ class AdHocForm
 
         global $wpdb;
 
-        return (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}nf3_forms WHERE id = %d",
-            $form_id
-        )) > 0;
+        $cache_key = 'adhoc_form_exists_' . $form_id;
+        $exists    = wp_cache_get($cache_key, self::CACHE_GROUP);
+
+        if (false === $exists) {
+            $exists = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM %i WHERE id = %d', $wpdb->prefix . 'nf3_forms', $form_id));
+            wp_cache_set($cache_key, $exists, self::CACHE_GROUP, HOUR_IN_SECONDS);
+        }
+
+        return (int) $exists > 0;
+    }
+
+    /**
+     * Hooked to Ninja Forms' `ninja_forms_after_form_delete`, so deleting
+     * our form re-provisions it on the next ad hoc entry instead of after
+     * the cache expires.
+     *
+     * @param int|string $form_id
+     */
+    public static function forget_form($form_id): void
+    {
+        wp_cache_delete('adhoc_form_exists_' . (int) $form_id, self::CACHE_GROUP);
+        self::$cache = null;
     }
 
     /**
@@ -132,6 +151,10 @@ class AdHocForm
 
     private static function create_field(int $form_id, string $type, string $key, string $label): int
     {
+        if (! function_exists('Ninja_Forms')) {
+            return 0;
+        }
+
         $field = Ninja_Forms()->form($form_id)->field()->get();
         $field->update_settings(['type' => $type, 'key' => $key, 'label' => $label]);
         $field->save();

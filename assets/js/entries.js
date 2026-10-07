@@ -629,13 +629,13 @@
 	// survives reloads and future visits. The table always re-renders with
 	// the default layout server-side, and I reapply the saved layout on top
 	// of it client-side.
-	var COLUMNS_STORAGE_KEY = 'iftpNfEntriesColumns';
+	var columnsStorageKey = 'iftpNfEntriesColumns';
 
 	function loadColumnLayout( defaultOrder ) {
 		var layout = null;
 
 		try {
-			var raw = window.localStorage.getItem( COLUMNS_STORAGE_KEY );
+			var raw = window.localStorage.getItem( columnsStorageKey );
 			layout = raw ? JSON.parse( raw ) : null;
 		} catch ( e ) {
 			layout = null;
@@ -666,7 +666,7 @@
 
 	function persistColumnLayout( layout ) {
 		try {
-			window.localStorage.setItem( COLUMNS_STORAGE_KEY, JSON.stringify( layout ) );
+			window.localStorage.setItem( columnsStorageKey, JSON.stringify( layout ) );
 		} catch ( e ) {
 			// Private browsing / storage disabled — the chosen layout just won't persist.
 		}
@@ -1012,11 +1012,11 @@
 	// Selection persists across pagination via sessionStorage (not
 	// localStorage) so it survives page navigation but not indefinitely
 	// across visits.
-	var SELECTION_STORAGE_KEY = 'iftpNfEntriesSelection';
+	var selectionStorageKey = 'iftpNfEntriesSelection';
 
 	function loadSelection() {
 		try {
-			var raw = window.sessionStorage.getItem( SELECTION_STORAGE_KEY );
+			var raw = window.sessionStorage.getItem( selectionStorageKey );
 			var parsed = raw ? JSON.parse( raw ) : [];
 
 			return new window.Set( Array.isArray( parsed ) ? parsed : [] );
@@ -1027,7 +1027,7 @@
 
 	function persistSelection( selection ) {
 		try {
-			window.sessionStorage.setItem( SELECTION_STORAGE_KEY, JSON.stringify( Array.from( selection ) ) );
+			window.sessionStorage.setItem( selectionStorageKey, JSON.stringify( Array.from( selection ) ) );
 		} catch ( e ) {
 			// Private browsing / storage disabled — selection just won't survive a page change.
 		}
@@ -1048,7 +1048,7 @@
 		}
 
 		var settings = window.iftpNfEntries;
-		var ROW_REMOVE_DURATION = 220;
+		var rowRemoveDuration = 220;
 		var busy = false;
 		var selection = loadSelection();
 
@@ -1245,10 +1245,10 @@
 					if ( detailsRow ) {
 						detailsRow.remove();
 					}
-				}, ROW_REMOVE_DURATION );
+				}, rowRemoveDuration );
 			} );
 
-			window.setTimeout( onDone, ROW_REMOVE_DURATION + 20 );
+			window.setTimeout( onDone, rowRemoveDuration + 20 );
 		}
 
 		// Once a bulk action's applied to every selected ref — including ones
@@ -1448,7 +1448,7 @@
 
 	// Remembers the last "entries per page" choice so it carries over next
 	// time this screen opens fresh, instead of resetting to the 20-per-page default.
-	var PER_PAGE_STORAGE_KEY = 'iftpNfEntriesPerPage';
+	var perPageStorageKey = 'iftpNfEntriesPerPage';
 
 	function bindPerPagePreference() {
 		var select = document.getElementById( 'iftp-nf-per-page' );
@@ -1476,7 +1476,7 @@
 			var stored = null;
 
 			try {
-				stored = window.localStorage.getItem( PER_PAGE_STORAGE_KEY );
+				stored = window.localStorage.getItem( perPageStorageKey );
 			} catch ( e ) {
 				stored = null;
 			}
@@ -1537,7 +1537,7 @@
 			}
 
 			try {
-				window.localStorage.setItem( PER_PAGE_STORAGE_KEY, select.value );
+				window.localStorage.setItem( perPageStorageKey, select.value );
 			} catch ( e ) {
 				// Private browsing / storage disabled — the form below still submits normally.
 			}
@@ -1567,7 +1567,7 @@
 			customInput.value = String( value );
 
 			try {
-				window.localStorage.setItem( PER_PAGE_STORAGE_KEY, String( value ) );
+				window.localStorage.setItem( perPageStorageKey, String( value ) );
 			} catch ( e ) {
 				// Private browsing / storage disabled — the form below still submits normally.
 			}
@@ -1720,23 +1720,23 @@
 		var prefersReducedMotion = !! ( window.matchMedia && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches );
 
 		// One entry per hover step; `null` means "no state class" (home).
-		var HOVER_STEPS = [ 'nf-shy-ninja-right', null, 'nf-shy-ninja-right', 'nf-shy-ninja-exit-left' ];
-		var STATE_CLASSES = [ 'nf-shy-ninja-right', 'nf-shy-ninja-exit-left' ];
+		var hoverSteps = [ 'nf-shy-ninja-right', null, 'nf-shy-ninja-right', 'nf-shy-ninja-exit-left' ];
+		var stateClasses = [ 'nf-shy-ninja-right', 'nf-shy-ninja-exit-left' ];
 
-		var SHAKE_DURATION = prefersReducedMotion ? 0 : 400;
-		var EXIT_DURATION = prefersReducedMotion ? 0 : 600; // Time for the exit-left slide to finish.
-		var OFFSCREEN_WAIT = prefersReducedMotion ? 0 : 3000; // How long he stays gone before heading back.
-		var SMOKE_DURATION = prefersReducedMotion ? 0 : 600; // Quick vanish puff.
-		var SMOKE_COVER_DURATION = prefersReducedMotion ? 0 : 3700; // Slower "bloom, hold, clear" reveal — the last wave of cluster puffs starts .7s in (see admin.css) then runs its own 2.9s.
-		var RETURN_DURATION = prefersReducedMotion ? 0 : 450; // Walking back home when left idle — same speed as hopping out, reversed.
-		var IDLE_DELAY = 4000;
+		var shakeDuration = prefersReducedMotion ? 0 : 400;
+		var exitDuration = prefersReducedMotion ? 0 : 600; // Time for the exit-left slide to finish.
+		var offscreenWait = prefersReducedMotion ? 0 : 3000; // How long he stays gone before heading back.
+		var smokeDuration = prefersReducedMotion ? 0 : 600; // Quick vanish puff.
+		var smokeCoverDuration = prefersReducedMotion ? 0 : 3700; // Slower "bloom, hold, clear" reveal — the last wave of cluster puffs starts .7s in (see admin.css) then runs its own 2.9s.
+		var returnDuration = prefersReducedMotion ? 0 : 450; // Walking back home when left idle — same speed as hopping out, reversed.
+		var idleDelay = 4000;
 
 		var busy = false;
 		var idleTimer = null;
 		var hoverStep = 0;
 
 		function clearStateClasses() {
-			STATE_CLASSES.forEach( function ( className ) {
+			stateClasses.forEach( function ( className ) {
 				wrapper.classList.remove( className );
 			} );
 		}
@@ -1759,9 +1759,9 @@
 					window.setTimeout( function () {
 						busy = false;
 						armIdleTimer();
-					}, RETURN_DURATION );
+					}, returnDuration );
 				}
-			}, IDLE_DELAY );
+			}, idleDelay );
 		}
 
 		// Once he's off-screen: wait, then bloom the smoke cloud and
@@ -1783,8 +1783,8 @@
 					hoverStep = 0;
 					busy = false;
 					armIdleTimer();
-				}, SMOKE_COVER_DURATION );
-			}, OFFSCREEN_WAIT );
+				}, smokeCoverDuration );
+			}, offscreenWait );
 		}
 
 		wrapper.addEventListener( 'mouseenter', function () {
@@ -1801,7 +1801,7 @@
 			window.setTimeout( function () {
 				wrapper.classList.remove( 'nf-shy-ninja-shake' );
 
-				var targetClass = HOVER_STEPS[ hoverStep ];
+				var targetClass = hoverSteps[ hoverStep ];
 				var isExiting = 'nf-shy-ninja-exit-left' === targetClass;
 
 				clearStateClasses();
@@ -1816,16 +1816,16 @@
 
 					window.setTimeout( function () {
 						wrapper.classList.remove( 'nf-shy-ninja-smoke-active' );
-					}, SMOKE_DURATION );
+					}, smokeDuration );
 
-					window.setTimeout( runVanishSequence, EXIT_DURATION );
+					window.setTimeout( runVanishSequence, exitDuration );
 					return;
 				}
 
-				hoverStep = ( hoverStep + 1 ) % HOVER_STEPS.length;
+				hoverStep = ( hoverStep + 1 ) % hoverSteps.length;
 				busy = false;
 				armIdleTimer();
-			}, SHAKE_DURATION );
+			}, shakeDuration );
 		} );
 
 		armIdleTimer();

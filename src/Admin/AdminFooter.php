@@ -50,11 +50,9 @@ class AdminFooter
             return;
         }
 
-        printf(
-            '<div class="iftp-nf-footer-powered"><span class="iftp-nf-footer-powered-label">%1$s</span><img src="%2$s" alt="ifthenpay" class="iftp-nf-footer-logo" draggable="false" /></div>',
-            esc_html__('Powered by', 'ifthenpay-payments-for-ninja-forms'),
-            esc_url(IFTP_NF_URL . 'assets/img/logo-color.svg')
-        );
+        echo '<div class="iftp-nf-footer-powered"><span class="iftp-nf-footer-powered-label">'
+            . esc_html__('Powered by', 'ifthenpay-payments-for-ninja-forms')
+            . '</span><img src="' . esc_url(IFTP_NF_URL . 'assets/img/logo-color.svg') . '" alt="ifthenpay" class="iftp-nf-footer-logo" draggable="false" /></div>';
     }
 
     public function version_text(string $content): string
@@ -74,14 +72,16 @@ class AdminFooter
 
     private function is_our_screen(): bool
     {
-        $page = sanitize_text_field(wp_unslash($_GET['page'] ?? ''));
-
-        if (self::ENTRIES_PAGE_SLUG === $page) {
+        if (AdminScreen::is(self::ENTRIES_PAGE_SLUG)) {
             return true;
         }
 
-        $tab = sanitize_text_field(wp_unslash($_GET['tab'] ?? ''));
+        foreach (self::SETTINGS_TAB_SLUGS as $tab) {
+            if (AdminScreen::is(self::SETTINGS_PAGE_SLUG, $tab)) {
+                return true;
+            }
+        }
 
-        return self::SETTINGS_PAGE_SLUG === $page && in_array($tab, self::SETTINGS_TAB_SLUGS, true);
+        return false;
     }
 }

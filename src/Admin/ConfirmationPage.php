@@ -79,8 +79,8 @@ class ConfirmationPage
         $admin_css       = 'assets/css/admin.css';
         $confirmation_js = 'assets/js/confirmation.js';
 
-        wp_enqueue_style('iftp-nf-admin', IFTP_NF_URL . $admin_css, [], (string) filemtime(IFTP_NF_PATH . $admin_css));
-        wp_enqueue_script('iftp-nf-confirmation', IFTP_NF_URL . $confirmation_js, [], (string) filemtime(IFTP_NF_PATH . $confirmation_js), true);
+        wp_enqueue_style('iftp-nf-admin', IFTP_NF_URL . $admin_css, [], Plugin::asset_version($admin_css));
+        wp_enqueue_script('iftp-nf-confirmation', IFTP_NF_URL . $confirmation_js, [], Plugin::asset_version($confirmation_js), true);
 
         wp_localize_script('iftp-nf-confirmation', 'iftpNfConfirmation', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
@@ -114,13 +114,14 @@ class ConfirmationPage
         $page_dropdown = wp_dropdown_pages([
             'name'              => 'paid_page_id',
             'id'                => 'iftp-nf-confirmation-paid-page',
-            'selected'          => $paid_page_id,
-            'show_option_none'  => __('— Select a page —', 'ifthenpay-payments-for-ninja-forms'),
+            'selected'          => (int) $paid_page_id,
+            // Core prints this label unescaped.
+            'show_option_none'  => esc_html__('— Select a page —', 'ifthenpay-payments-for-ninja-forms'),
             'option_none_value' => '0',
             'echo'              => 0,
         ]);
         ?>
-        <div class="iftp-nf-settings iftp-nf-confirmation">
+        <div class="iftp-nf-settings iftp-nf-confirmation" id="iftp-nf-confirmation-page">
             <div class="iftp-nf-settings-header">
                 <span class="iftp-nf-brand-badge">
                     <img src="<?php echo esc_url(IFTP_NF_URL . 'assets/img/icon-white.svg'); ?>" alt="" />
@@ -175,6 +176,7 @@ class ConfirmationPage
                     </div>
 
                     <div class="iftp-nf-confirmation-option" data-option="popup" <?php echo SettingsRepository::CONFIRMATION_TYPE_POPUP === $paid_type ? '' : 'hidden'; ?>>
+                        <?php $this->render_title_field(SubmissionStore::STATUS_PAID); ?>
                         <label><?php esc_html_e('Popup Message', 'ifthenpay-payments-for-ninja-forms'); ?></label>
                         <?php
                         $this->render_message_field(
@@ -207,7 +209,7 @@ class ConfirmationPage
                             id="iftp-nf-confirmation-paid-url"
                             name="paid_url"
                             class="large-text"
-                            placeholder="https://example.com/thank-you"
+                            placeholder="<?php echo esc_attr(home_url('/thank-you/')); ?>"
                             value="<?php echo esc_attr($paid_url); ?>"
                         />
                     </div>
@@ -215,6 +217,7 @@ class ConfirmationPage
 
                 <div class="iftp-nf-card iftp-nf-confirmation-panel" data-panel="pending" hidden>
                     <h3><?php esc_html_e('Pending', 'ifthenpay-payments-for-ninja-forms'); ?></h3>
+                    <?php $this->render_title_field(SubmissionStore::STATUS_PENDING); ?>
                     <label><?php esc_html_e('Popup Message', 'ifthenpay-payments-for-ninja-forms'); ?></label>
                     <?php
                     $this->render_message_field(
@@ -228,6 +231,7 @@ class ConfirmationPage
 
                 <div class="iftp-nf-card iftp-nf-confirmation-panel" data-panel="failed" hidden>
                     <h3><?php esc_html_e('Failed', 'ifthenpay-payments-for-ninja-forms'); ?></h3>
+                    <?php $this->render_title_field(SubmissionStore::STATUS_FAILED); ?>
                     <label><?php esc_html_e('Popup Message', 'ifthenpay-payments-for-ninja-forms'); ?></label>
                     <?php
                     $this->render_message_field(
@@ -241,6 +245,7 @@ class ConfirmationPage
 
                 <div class="iftp-nf-card iftp-nf-confirmation-panel" data-panel="cancelled" hidden>
                     <h3><?php esc_html_e('Cancelled', 'ifthenpay-payments-for-ninja-forms'); ?></h3>
+                    <?php $this->render_title_field(SubmissionStore::STATUS_CANCELLED); ?>
                     <label><?php esc_html_e('Popup Message', 'ifthenpay-payments-for-ninja-forms'); ?></label>
                     <?php
                     $this->render_message_field(
@@ -262,6 +267,39 @@ class ConfirmationPage
                     </span>
                 </p>
             </form>
+        </div>
+        <?php
+    }
+
+    /**
+     * The popup's title for one status: the text (blank falls back to the
+     * default, shown as the placeholder) and a "Show title" toggle, off by
+     * default so popups keep their title-less look until an admin opts in.
+     */
+    private function render_title_field(string $status): void
+    {
+        $title = $this->settings->get_confirmation_title($status);
+        $id    = 'iftp-nf-confirmation-' . $status . '-title';
+        ?>
+        <div class="iftp-nf-popup-title-field">
+            <label for="<?php echo esc_attr($id); ?>"><?php esc_html_e('Popup Title', 'ifthenpay-payments-for-ninja-forms'); ?></label>
+            <input
+                type="text"
+                id="<?php echo esc_attr($id); ?>"
+                name="<?php echo esc_attr($status . '_title'); ?>"
+                class="large-text"
+                placeholder="<?php echo esc_attr(Plugin::default_status_title($status)); ?>"
+                value="<?php echo esc_attr($title['text']); ?>"
+            />
+            <label class="iftp-nf-confirmation-checkbox">
+                <input
+                    type="checkbox"
+                    id="<?php echo esc_attr($id . '-shown'); ?>"
+                    name="<?php echo esc_attr($status . '_title_shown'); ?>"
+                    <?php checked($title['shown']); ?>
+                />
+                <?php esc_html_e('Show title', 'ifthenpay-payments-for-ninja-forms'); ?>
+            </label>
         </div>
         <?php
     }
@@ -312,9 +350,6 @@ class ConfirmationPage
 
     private function is_confirmation_tab(): bool
     {
-        $page = sanitize_text_field(wp_unslash($_GET['page'] ?? ''));
-        $tab  = sanitize_text_field(wp_unslash($_GET['tab'] ?? ''));
-
-        return 'nf-settings' === $page && self::TAB_SLUG === $tab;
+        return AdminScreen::is('nf-settings', self::TAB_SLUG);
     }
 }

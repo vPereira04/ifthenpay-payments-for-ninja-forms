@@ -26,7 +26,7 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
     public const SLUG = 'ifthenpay';
 
     /**
-     * Values I write into (and later read back from) the `iftp_nf_pay`
+     * Values I write into (and later read back from) the `ARG_STATUS`
      * return-URL param. Named constants so the writer and reader can't
      * silently drift apart.
      *
@@ -36,6 +36,16 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
     public const RETURN_STATUS_SUCCESS = 'success';
     public const RETURN_STATUS_ERROR   = 'error';
     public const RETURN_STATUS_CANCEL  = 'cancel';
+
+    /**
+     * Our return-URL params. Prefixed, since the customer lands back on
+     * any page of the site and a bare `ref` gets read as a referral by
+     * affiliate plugins.
+     */
+    public const ARG_STATUS = 'iftp_nf_pay';
+    public const ARG_REF    = 'iftp_nf_ref';
+    public const ARG_KEY    = 'iftp_nf_key';
+    public const ARG_TXN    = 'iftp_nf_txn';
 
     private SettingsRepository $settings;
     private IfthenpayClient $client;
@@ -59,6 +69,7 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
 
     /**
      * @param array<string, mixed> $action_settings
+     * @param int|string           $form_id
      * @param array<string, mixed> $data
      * @return array<string, mixed>
      */
@@ -153,9 +164,9 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
     /**
      * I use the real submission's post ID as the reference whenever one
      * exists, so the same ID also opens the submission directly in the
-     * admin. That makes references guessable (sequential) — an acceptable
-     * tradeoff, since probing one only reveals a generic status, and the
-     * webhook itself is authenticated by gateway key + amount, not secrecy.
+     * admin. That makes references guessable (sequential), so the return
+     * page only trusts a ref that comes with its `return_key()`, and the
+     * webhook is authenticated by gateway key + amount, not secrecy.
      *
      * Falls back to a random reference when there's no submission ID to
      * build from.
@@ -167,6 +178,21 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
         }
 
         return $form_id . '_' . wp_generate_password(12, false, false);
+    }
+
+    /**
+     * The secret that proves a return URL is the one we built for `$ref`.
+     * Refs are sequential, so without it anyone could walk them and read
+     * other customers' payment popups (and their entry data).
+     */
+    public static function return_key(string $ref): string
+    {
+        return substr(hash_hmac('sha256', 'iftp_nf_return|' . $ref, wp_salt('auth')), 0, 32);
+    }
+
+    public static function is_valid_return_key(string $ref, string $key): bool
+    {
+        return '' !== $ref && '' !== $key && hash_equals(self::return_key($ref), $key);
     }
 
     /**
@@ -220,41 +246,45 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
 
         $save_action = Ninja_Forms()->actions['save'] ?? null;
 
-        if (null === $save_action || ! method_exists($save_action, 'process')) {
+        if (! is_object($save_action) || ! method_exists($save_action, 'process')) {
             return $data;
         }
+
+        $save_settings = null;
 
         foreach (Ninja_Forms()->form($form_id)->get_actions() as $action) {
             $settings = $action->get_settings();
 
-            if ('save' !== ($settings['type'] ?? '')) {
-                continue;
+            if ('save' === ($settings['type'] ?? '')) {
+                $save_settings       = $settings;
+                $save_settings['id'] = $action->get_id();
+                break;
             }
+        }
 
-            $settings['id'] = $action->get_id();
-
-            $data = $save_action->process($settings, $form_id, $data);
-            $data['processed_actions'][] = $settings['id'];
-
-            $sub_id = $data['actions']['save']['sub_id'] ?? null;
-
-            if (null === $sub_id) {
-                // Logging this: "save" ran but returned no sub_id, so the
-                // reference will fall back to a random one — likely another
-                // plugin's filter rejected the save.
-                error_log(sprintf('ifthenpay Payments for Ninja Forms: "save" action on form #%d ran but produced no sub_id', $form_id));
-            } else {
-                // Backfilling seq_num too — it's just an extra detail shown
-                // in the entries admin, already in post meta by now.
-                $data['actions']['save']['seq_num'] = (int) get_post_meta((int) $sub_id, '_seq_num', true);
-            }
+        if (null === $save_settings) {
+            // No "save" action on this form at all — the only case the random
+            // reference fallback is meant for.
+            error_log(sprintf('ifthenpay Payments for Ninja Forms: form #%d has no "save" action, falling back to a random reference', $form_id));
 
             return $data;
         }
 
-        // No "save" action on this form at all — the only case the random
-        // reference fallback is meant for.
-        error_log(sprintf('ifthenpay Payments for Ninja Forms: form #%d has no "save" action, falling back to a random reference', $form_id));
+        $data = $save_action->process($save_settings, $form_id, $data);
+        $data['processed_actions'][] = $save_settings['id'];
+
+        $sub_id = $data['actions']['save']['sub_id'] ?? null;
+
+        if (null === $sub_id) {
+            // Logging this: "save" ran but returned no sub_id, so the
+            // reference will fall back to a random one — likely another
+            // plugin's filter rejected the save.
+            error_log(sprintf('ifthenpay Payments for Ninja Forms: "save" action on form #%d ran but produced no sub_id', $form_id));
+        } else {
+            // Backfilling seq_num too — it's just an extra detail shown
+            // in the entries admin, already in post meta by now.
+            $data['actions']['save']['seq_num'] = (int) get_post_meta((int) $sub_id, '_seq_num', true);
+        }
 
         return $data;
     }
@@ -288,7 +318,7 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
         $base_url = false !== $referer && '' !== $referer ? $referer : home_url('/');
 
         return remove_query_arg(
-            ['iftp_nf_pay', 'ref', 'transaction_id', 'id', 'amount', 'requestId', 'sk', 'brand', 'pan', 'lang'],
+            [self::ARG_STATUS, self::ARG_REF, self::ARG_KEY, self::ARG_TXN, 'id', 'amount', 'requestId', 'sk', 'brand', 'pan', 'lang'],
             $base_url
         );
     }
@@ -302,12 +332,13 @@ class IfthenpayGateway extends NF_Abstracts_PaymentGateway
     private function build_return_url(string $status, string $ref, string $base_url): string
     {
         $args = [
-            'iftp_nf_pay' => $status,
-            'ref'         => $ref,
+            self::ARG_STATUS => $status,
+            self::ARG_REF    => $ref,
+            self::ARG_KEY    => self::return_key($ref),
         ];
 
         if (self::RETURN_STATUS_SUCCESS === $status) {
-            $args['transaction_id'] = '[TRANSACTIONID]';
+            $args[self::ARG_TXN] = '[TRANSACTIONID]';
         }
 
         return add_query_arg($args, $base_url);

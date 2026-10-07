@@ -116,6 +116,12 @@
 		icon.className = 'iftp-nf-modal-icon';
 		icon.setAttribute( 'aria-hidden', 'true' );
 
+		// Hidden unless the admin turned a title on for this status.
+		var title = document.createElement( 'h2' );
+		title.className = 'iftp-nf-modal-title';
+		title.id = 'iftp-nf-modal-title';
+		title.hidden = true;
+
 		var text = document.createElement( 'p' );
 		text.className = 'iftp-nf-modal-message';
 		text.setAttribute( 'role', 'status' );
@@ -127,6 +133,7 @@
 
 		modal.appendChild( closeBtn );
 		modal.appendChild( icon );
+		modal.appendChild( title );
 		modal.appendChild( text );
 		modal.appendChild( okBtn );
 		overlay.appendChild( modal );
@@ -171,6 +178,7 @@
 		var refs = {
 			modal: modal,
 			icon: icon,
+			title: title,
 			text: text,
 			okBtn: okBtn,
 			open: open,
@@ -198,6 +206,17 @@
 
 		if ( statusChanged ) {
 			renderIftpNfIcon( refs.icon, status );
+		}
+
+		var titleText = ( iftpNfReturn.titles && iftpNfReturn.titles[ status ] ) || '';
+
+		refs.title.textContent = titleText;
+		refs.title.hidden = '' === titleText;
+
+		if ( titleText ) {
+			refs.modal.setAttribute( 'aria-labelledby', refs.title.id );
+		} else {
+			refs.modal.removeAttribute( 'aria-labelledby' );
 		}
 
 		// innerHTML, not textContent — admins can format this message with
@@ -324,8 +343,8 @@
 
 	// No white — pieces travel onto the modal's own white background, where
 	// a white piece would just vanish.
-	var CONFETTI_COLORS = [ '#ffcd3c', '#4d9de0', '#e75a7c', '#7bd389', '#9b5de5', '#ff8c42' ];
-	var CONFETTI_ANGLES = [ 0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330 ];
+	var confettiColors = [ '#ffcd3c', '#4d9de0', '#e75a7c', '#7bd389', '#9b5de5', '#ff8c42' ];
+	var confettiAngles = [ 0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330 ];
 
 	function buildCheckIcon() {
 		var wrap = document.createElement( 'span' );
@@ -358,11 +377,11 @@
 		holder.className = 'iftp-nf-confetti';
 		holder.setAttribute( 'aria-hidden', 'true' );
 
-		CONFETTI_ANGLES.forEach( function ( angle, index ) {
+		confettiAngles.forEach( function ( angle, index ) {
 			var piece = document.createElement( 'span' );
 			piece.className = 'iftp-nf-confetti-piece';
 			piece.style.setProperty( '--iftp-angle', angle + 'deg' );
-			piece.style.setProperty( '--iftp-color', CONFETTI_COLORS[ index % CONFETTI_COLORS.length ] );
+			piece.style.setProperty( '--iftp-color', confettiColors[ index % confettiColors.length ] );
 
 			var inner = document.createElement( 'span' );
 			inner.className = 'iftp-nf-confetti-piece-inner';
@@ -556,6 +575,7 @@
 			'action=iftp_nf_verify_payment',
 			'nonce=' + encodeURIComponent( iftpNfReturn.nonce ),
 			'ref=' + encodeURIComponent( iftpNfReturn.ref ),
+			'key=' + encodeURIComponent( iftpNfReturn.key || '' ),
 			'return_action=' + encodeURIComponent( returnAction ),
 			// query_status is the page's original iftp_nf_pay value, unrelated
 			// to returnAction — I send it with every poll tick so the server
@@ -572,12 +592,12 @@
 		xhr.send( params.join( '&' ) );
 	}
 
-	// iftp_nf_pay/ref/transaction_id are ours; the rest are ifthenpay's own
+	// The iftp_nf_* params are ours; the rest are ifthenpay's own
 	// card-payment page decorating the return redirect (an anti-phishing key,
 	// masked card number, etc.) that we never read — so I strip them all
 	// rather than let them sit in browser history and leak into the next
 	// Pay-by-Link return URL as a stale referer.
-	var RETURN_PARAMS = [ 'iftp_nf_pay', 'ref', 'transaction_id', 'id', 'amount', 'requestId', 'sk', 'brand', 'pan' ];
+	var returnParams = [ 'iftp_nf_pay', 'iftp_nf_ref', 'iftp_nf_key', 'iftp_nf_txn', 'id', 'amount', 'requestId', 'sk', 'brand', 'pan' ];
 
 	// Drops the params above from the address bar on load, so a refresh
 	// doesn't re-show the same result and nothing sensitive lingers in the URL.
@@ -589,7 +609,7 @@
 		var url = new URL( window.location.href );
 		var changed = false;
 
-		RETURN_PARAMS.forEach( function ( param ) {
+		returnParams.forEach( function ( param ) {
 			if ( url.searchParams.has( param ) ) {
 				url.searchParams.delete( param );
 				changed = true;

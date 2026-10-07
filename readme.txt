@@ -1,11 +1,11 @@
-=== ifthenpay Payments for Ninja Forms ===
+=== ifthenpay | Payments for Ninja Forms ===
 Contributors: ifthenpay
 Tags: ninja forms, payments, multibanco, mb way, payshop
 Requires at least: 6.4
-Tested up to: 6.9
+Tested up to: 7.1
 Requires PHP: 7.4
 Stable tag: 1.0.0
-License: GPL v2 or later
+License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 Adds ifthenpay payment methods to Ninja Forms: cards, wallets, and local payment options; supports secure one-time payments via pay-by-link.
@@ -125,6 +125,8 @@ All network requests are performed server-side over HTTPS. Sensitive credentials
 
 == Changelog ==
 
+Releases that fix a security issue say so in their entry, prefixed with **Security:**.
+
 = 1.0.0 =
 * Initial public release: ifthenpay Pay by Link gateway for Ninja Forms' Collect Payment action, webhook-confirmed payment status, ifthenpay Entries admin screen, configurable per-outcome confirmation behavior, and automatic expiry labeling of stale pending payments.
 
@@ -132,6 +134,10 @@ All network requests are performed server-side over HTTPS. Sensitive credentials
 
 = 1.0.0 =
 Initial public release.
+
+== Security ==
+
+Please report security issues privately to suporte@ifthenpay.com with "Security" in the subject line, not in the public support forum. See SECURITY.md in the plugin folder for what to include and what happens next.
 
 == Support ==
 

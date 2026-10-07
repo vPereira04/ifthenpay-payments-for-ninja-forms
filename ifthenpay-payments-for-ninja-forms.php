@@ -1,14 +1,15 @@
 <?php
 /**
- * Plugin Name: ifthenpay Payments for Ninja Forms
- * Plugin URI: https://ifthenpay.com
+ * Plugin Name: ifthenpay | Payments for Ninja Forms
+ * Plugin URI: https://github.com/vPereira04/ifthenpay-payments-for-ninja-forms
  * Description: Accept ifthenpay payments (Multibanco, MB WAY, Payshop, Pix, Credit Card and more) in Ninja Forms via Pay by Link, with webhook-confirmed payment status.
  * Version: 1.0.0
  * Requires at least: 6.4
  * Requires PHP: 7.4
+ * Requires Plugins: ninja-forms
  * Author: ifthenpay
  * Author URI: https://ifthenpay.com
- * License: GPL v2 or later
+ * License: GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: ifthenpay-payments-for-ninja-forms
  *
@@ -39,42 +40,56 @@ if (file_exists($iftp_nf_autoload)) {
  * whether our filter got registered in time — so I hook earlier here to
  * remove that race entirely.
  */
-add_action('plugins_loaded', 'iftp_nf_bootstrap', 5);
+add_action(
+    'plugins_loaded',
+    static function (): void {
+        if (! class_exists('Ninja_Forms')) {
+            add_action(
+                'admin_notices',
+                static function (): void {
+                    wp_admin_notice(
+                        esc_html__('ifthenpay Payments for Ninja Forms requires Ninja Forms to be installed and active.', 'ifthenpay-payments-for-ninja-forms'),
+                        ['type' => 'warning']
+                    );
+                },
+                10,
+                0
+            );
 
-function iftp_nf_bootstrap(): void
-{
-    if (! class_exists('Ninja_Forms')) {
-        add_action('admin_notices', 'iftp_nf_missing_ninja_forms_notice');
+            return;
+        }
 
-        return;
-    }
+        if (! class_exists(\Ifthenpay\NinjaForms\Plugin::class)) {
+            add_action(
+                'admin_notices',
+                static function (): void {
+                    wp_admin_notice(
+                        esc_html__('ifthenpay Payments for Ninja Forms could not load its classes. Run "composer install" in the plugin folder.', 'ifthenpay-payments-for-ninja-forms'),
+                        ['type' => 'error']
+                    );
+                },
+                10,
+                0
+            );
 
-    if (! class_exists(\Ifthenpay\NinjaForms\Plugin::class)) {
-        add_action('admin_notices', 'iftp_nf_missing_autoloader_notice');
+            return;
+        }
 
-        return;
-    }
-
-    \Ifthenpay\NinjaForms\Plugin::instance()->boot();
-}
-
-function iftp_nf_missing_ninja_forms_notice(): void
-{
-    printf(
-        '<div class="notice notice-warning"><p>%s</p></div>',
-        esc_html__('ifthenpay Payments for Ninja Forms requires Ninja Forms to be installed and active.', 'ifthenpay-payments-for-ninja-forms')
-    );
-}
-
-function iftp_nf_missing_autoloader_notice(): void
-{
-    printf(
-        '<div class="notice notice-error"><p>%s</p></div>',
-        esc_html__('ifthenpay Payments for Ninja Forms could not load its classes. Run "composer install" in the plugin folder.', 'ifthenpay-payments-for-ninja-forms')
-    );
-}
+        \Ifthenpay\NinjaForms\Plugin::instance()->boot();
+    },
+    5
+);
 
 register_activation_hook(__FILE__, static function (): void {
+    // `Requires Plugins` already blocks this on WP 6.5+; this covers 6.4.
+    if (! class_exists('Ninja_Forms')) {
+        wp_die(
+            esc_html__('ifthenpay Payments for Ninja Forms requires Ninja Forms to be installed and active.', 'ifthenpay-payments-for-ninja-forms'),
+            esc_html__('Plugin dependency missing', 'ifthenpay-payments-for-ninja-forms'),
+            ['back_link' => true]
+        );
+    }
+
     if (class_exists(\Ifthenpay\NinjaForms\Cron\ExpiredPaymentsCron::class)) {
         \Ifthenpay\NinjaForms\Cron\ExpiredPaymentsCron::schedule();
     }

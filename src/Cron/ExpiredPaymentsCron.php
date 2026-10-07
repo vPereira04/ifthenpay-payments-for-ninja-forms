@@ -52,17 +52,14 @@ class ExpiredPaymentsCron
 
     public function run(): void
     {
-        $expiry_seconds = $this->settings->get_expiry_days() * DAY_IN_SECONDS;
-        $cutoff = time() - $expiry_seconds;
+        $cutoff = time() - $this->settings->get_expiry_days() * DAY_IN_SECONDS;
 
-        foreach ($this->submissions->get_all_refs() as $ref) {
+        foreach ($this->submissions->pending_refs_before($cutoff) as $ref) {
+            // The option row is the source of truth, so I re-check it before
+            // trusting the index.
             $record = $this->submissions->get($ref);
 
-            if (null === $record || SubmissionStore::STATUS_PENDING !== $record['status']) {
-                continue;
-            }
-
-            if ((int) $record['created_at'] < $cutoff) {
+            if (null !== $record && SubmissionStore::STATUS_PENDING === $record['status']) {
                 $this->submissions->mark_expired($ref);
             }
         }

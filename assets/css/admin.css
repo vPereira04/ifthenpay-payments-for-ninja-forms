@@ -114,70 +114,79 @@
 
 /* Everywhere on this screen: primary buttons, secondary button hover/focus,
    checkboxes, and input/select focus rings — `--iftp-nf-blue` itself is
-   declared on `:root` above. */
+   declared on `:root` above. Core's `.wp-core-ui .button*` rules
+   (wp-includes/css/buttons.css, plus the admin colour schemes) tie with a
+   plain class selector, so I scope the button rules to the page IDs. */
 
-.iftp-nf-settings .button-primary,
-.iftp-nf-entries .button-primary {
-	background: var(--iftp-nf-blue) !important;
-	border-color: var(--iftp-nf-blue) !important;
+#iftp-nf-settings-page .button-primary,
+#iftp-nf-confirmation-page .button-primary,
+#iftp-nf-entries .button-primary {
+	background: var(--iftp-nf-blue);
+	border-color: var(--iftp-nf-blue);
+}
+
+#iftp-nf-settings-page .button-primary:hover,
+#iftp-nf-settings-page .button-primary:focus,
+#iftp-nf-confirmation-page .button-primary:hover,
+#iftp-nf-confirmation-page .button-primary:focus,
+#iftp-nf-entries .button-primary:hover,
+#iftp-nf-entries .button-primary:focus {
+	background: var(--iftp-nf-blue);
+	border-color: var(--iftp-nf-blue);
+	color: #fff;
 }
 
 .iftp-nf-settings .button-primary:hover,
 .iftp-nf-settings .button-primary:focus,
 .iftp-nf-entries .button-primary:hover,
 .iftp-nf-entries .button-primary:focus {
-	background: var(--iftp-nf-blue) !important;
-	border-color: var(--iftp-nf-blue) !important;
 	filter: brightness(0.9);
-	color: #fff !important;
 }
 
 .iftp-nf-settings .button:not(.button-primary),
 .iftp-nf-entries .button:not(.button-primary) {
-	border-color: var(--iftp-nf-blue) !important;
-	color: var(--iftp-nf-blue) !important;
+	border-color: var(--iftp-nf-blue);
+	color: var(--iftp-nf-blue);
 }
 
 .iftp-nf-settings .button:not(.button-primary):hover,
 .iftp-nf-settings .button:not(.button-primary):focus,
 .iftp-nf-entries .button:not(.button-primary):hover,
 .iftp-nf-entries .button:not(.button-primary):focus {
-	border-color: var(--iftp-nf-blue) !important;
-	color: var(--iftp-nf-blue) !important;
+	border-color: var(--iftp-nf-blue);
+	color: var(--iftp-nf-blue);
 	filter: brightness(0.9);
 }
 
-/* WP core's own `.button:focus`/`.button-primary:focus` rules (`wp-admin.css`)
-   set their own `box-shadow`/`outline` in WP's generic admin blue — those
-   load after this stylesheet on some screens and are specific enough to win
-   over the plain `:focus` selectors above, so every button briefly flashes
-   WP's blue/black ring (and, since that box-shadow isn't one this file
-   controls, can clip square against the rounded corners set below) instead
-   of this plugin's own brand blue. Overriding `outline`/`box-shadow`
-   explicitly here — matching the ring treatment already used on this
-   screen's other custom controls (inputs, the columns trigger, pagination
-   buttons, etc.) — keeps focus visibly brand-colored and still fully round. */
-.iftp-nf-settings .button:focus,
-.iftp-nf-settings .button-primary:focus {
-	outline: none !important;
-	box-shadow: 0 0 0 1px #fff, 0 0 0 3px var(--iftp-nf-blue) !important;
-	border-radius: 8px !important;
+/* Brand-coloured, fully round focus ring in place of core's
+   `.wp-core-ui .button:focus` one. */
+#iftp-nf-settings-page .button:focus,
+#iftp-nf-settings-page .button-primary:focus,
+#iftp-nf-confirmation-page .button:focus,
+#iftp-nf-confirmation-page .button-primary:focus {
+	outline: none;
+	box-shadow: 0 0 0 1px #fff, 0 0 0 3px var(--iftp-nf-blue);
+	border-radius: 8px;
 }
 
-.iftp-nf-entries .button:focus,
-.iftp-nf-entries .button-primary:focus {
-	outline: none !important;
-	box-shadow: 0 0 0 1px #fff, 0 0 0 3px var(--iftp-nf-blue) !important;
-	border-radius: 6px !important;
+#iftp-nf-entries .button:focus,
+#iftp-nf-entries .button-primary:focus {
+	outline: none;
+	box-shadow: 0 0 0 1px #fff, 0 0 0 3px var(--iftp-nf-blue);
+	border-radius: 6px;
 }
 
 /* A bit more "spice" on the entries screen specifically — a rounder radius
    and a small hover lift on every button, matching the rest of the entries
    table's rounded/animated language (status pills, the fake selects, the
    pagination controls) instead of WP core's flat, square-edged default. */
+#iftp-nf-entries .button,
+#iftp-nf-entries .button-primary {
+	border-radius: 6px;
+}
+
 .iftp-nf-entries .button,
 .iftp-nf-entries .button-primary {
-	border-radius: 6px !important;
 	transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
@@ -199,9 +208,15 @@
    admin reads as one consistent, modern design rather than the entries
    screen being the only polished one. 8px rather than the entries screen's
    6px, per Victor's own explicit ask. */
+#iftp-nf-settings-page .button,
+#iftp-nf-settings-page .button-primary,
+#iftp-nf-confirmation-page .button,
+#iftp-nf-confirmation-page .button-primary {
+	border-radius: 8px;
+}
+
 .iftp-nf-settings .button,
 .iftp-nf-settings .button-primary {
-	border-radius: 8px !important;
 	transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
@@ -221,8 +236,11 @@
    methods-table cell, next to a status pill — see
    `Admin\GatewaySettingsField`), so it keeps its own smaller radius/lift
    rather than the full-size treatment above. */
+#iftp-nf-settings-page .iftp-nf-methods-table button.iftp-nf-request-activation {
+	border-radius: 6px;
+}
+
 .iftp-nf-methods-table button.iftp-nf-request-activation {
-	border-radius: 6px !important;
 	transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
@@ -236,10 +254,10 @@
 	box-shadow: none;
 }
 
-.iftp-nf-methods-table button.iftp-nf-request-activation:focus {
-	outline: none !important;
-	box-shadow: 0 0 0 1px #fff, 0 0 0 3px var(--iftp-nf-blue) !important;
-	border-radius: 6px !important;
+#iftp-nf-settings-page .iftp-nf-methods-table button.iftp-nf-request-activation:focus {
+	outline: none;
+	box-shadow: 0 0 0 1px #fff, 0 0 0 3px var(--iftp-nf-blue);
+	border-radius: 6px;
 }
 
 .iftp-nf-settings input[type="checkbox"],
@@ -247,7 +265,7 @@
 .iftp-nf-entries input[type="checkbox"],
 .iftp-nf-entries input[type="radio"],
 .iftp-nf-columns-menu input[type="checkbox"] {
-	accent-color: var(--iftp-nf-blue) !important;
+	accent-color: var(--iftp-nf-blue);
 }
 
 /* WP core fully re-skins checkboxes/radios itself (border/background plus a
@@ -264,8 +282,8 @@
 .iftp-nf-entries input[type="checkbox"]:checked,
 .iftp-nf-entries input[type="radio"]:checked,
 .iftp-nf-columns-menu input[type="checkbox"]:checked {
-	background: var(--iftp-nf-blue) !important;
-	border-color: var(--iftp-nf-blue) !important;
+	background: var(--iftp-nf-blue);
+	border-color: var(--iftp-nf-blue);
 }
 
 .iftp-nf-settings input[type="checkbox"]:focus,
@@ -273,7 +291,7 @@
 .iftp-nf-entries input[type="checkbox"]:focus,
 .iftp-nf-entries input[type="radio"]:focus,
 .iftp-nf-columns-menu input[type="checkbox"]:focus {
-	box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--iftp-nf-blue) !important;
+	box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--iftp-nf-blue);
 }
 
 /* A small spring "pop" the instant a row (or select-all) checkbox is
@@ -283,7 +301,7 @@
    visibility checkboxes too, for the same tactile feel. */
 .iftp-nf-entries input[type="checkbox"]:checked,
 .iftp-nf-columns-menu input[type="checkbox"]:checked {
-	animation: iftp-nf-checkbox-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+	animation: iftp-nf-checkbox-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @keyframes iftp-nf-checkbox-pop {
@@ -300,17 +318,23 @@
 	}
 }
 
-.iftp-nf-settings input[type="text"]:focus,
-.iftp-nf-settings input[type="number"]:focus,
-.iftp-nf-settings input[type="url"]:focus,
-.iftp-nf-settings select:focus,
-.iftp-nf-entries input[type="text"]:focus,
-.iftp-nf-entries input[type="search"]:focus,
-.iftp-nf-entries input[type="date"]:focus,
-.iftp-nf-entries input[type="number"]:focus,
-.iftp-nf-entries select:focus {
-	border-color: var(--iftp-nf-blue) !important;
-	box-shadow: 0 0 0 1px var(--iftp-nf-blue) !important;
+/* Page IDs so this beats core's equally specific `input[type=text]:focus`
+   and `.wp-core-ui select:focus` (wp-admin/css/forms.css). */
+#iftp-nf-settings-page input[type="text"]:focus,
+#iftp-nf-settings-page input[type="number"]:focus,
+#iftp-nf-settings-page input[type="url"]:focus,
+#iftp-nf-settings-page select:focus,
+#iftp-nf-confirmation-page input[type="text"]:focus,
+#iftp-nf-confirmation-page input[type="number"]:focus,
+#iftp-nf-confirmation-page input[type="url"]:focus,
+#iftp-nf-confirmation-page select:focus,
+#iftp-nf-entries input[type="text"]:focus,
+#iftp-nf-entries input[type="search"]:focus,
+#iftp-nf-entries input[type="date"]:focus,
+#iftp-nf-entries input[type="number"]:focus,
+#iftp-nf-entries select:focus {
+	border-color: var(--iftp-nf-blue);
+	box-shadow: 0 0 0 1px var(--iftp-nf-blue);
 }
 
 /* Base look for every text/number/url input and `<select>` across both
@@ -787,47 +811,45 @@
 .iftp-nf-entries-filters input[type="date"],
 .iftp-nf-entries-filters input[type="search"],
 .iftp-nf-entries-filters input[type="number"] {
-	box-sizing: border-box !important;
-	height: 32px !important;
-	padding: 0 10px !important;
+	box-sizing: border-box;
+	height: 32px;
 	border: 1px solid var(--iftp-nf-gray-light);
 	border-radius: 6px;
 	background: #fff;
 	color: var(--iftp-nf-gray-dark);
 	font-size: 13px;
 	box-shadow: none;
-	min-height: 32px !important;
+}
+
+/* Core's `.wp-core-ui select` and `input[type=date]` (forms.css) tie with the
+   rule above on padding/min-height, so these two go through the page ID. */
+#iftp-nf-entries .iftp-nf-entries-filters select,
+#iftp-nf-entries .iftp-nf-entries-filters input[type="date"],
+#iftp-nf-entries .iftp-nf-entries-filters input[type="search"],
+#iftp-nf-entries .iftp-nf-entries-filters input[type="number"] {
+	padding: 0 10px;
+	min-height: 32px;
 }
 
 /* The "Custom…" per-page input (`EntriesPage::render()`) — narrow, just
    enough for up to 3 digits (`PER_PAGE_MAX` is 250), rather than stretching
    to the same width as the search/date fields beside it. */
 .iftp-nf-per-page-custom {
-	width: 64px !important;
+	width: 64px;
 }
 
 /* The "Filter" submit button, at the same 32px height as the dropdowns
-   and inputs beside it — WP core's own `.button` sizing otherwise runs a
-   little taller, making it look out of place next to them. `!important`
-   because WP core's own `.button` rules were still winning without it. */
-.iftp-nf-entries-filters .button {
-	display: inline-flex !important;
-	align-items: center !important;
-	box-sizing: border-box !important;
-	height: 32px !important;
-	min-height: 32px !important;
-	padding: 0 14px !important;
-	line-height: normal !important;
-}
-
-.iftp-nf-entries-filters-buttons{
-	display: inline-flex !important;
-	align-items: center !important;
-	box-sizing: border-box !important;
-	height: 32px !important;
-	min-height: 32px !important;
-	padding: 8px !important;
-	line-height: normal !important;
+   and inputs beside it — WP core's own `.wp-core-ui .button` sizing
+   (buttons.css) otherwise runs taller and ties with a class selector, hence
+   the page ID. */
+#iftp-nf-entries .iftp-nf-entries-filters .button {
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box;
+	height: 32px;
+	min-height: 32px;
+	padding: 0 14px;
+	line-height: normal;
 }
 
 .iftp-nf-entries-filters select:focus,
@@ -856,8 +878,13 @@
 
 .iftp-nf-search input[type="search"] {
 	min-width: 220px;
-	padding-left: 32px;
 	min-height: 32px;
+}
+
+/* Room for the dashicon inside the field. Ties with the ID-scoped filter
+   rule above, so it relies on coming after it. */
+#iftp-nf-entries .iftp-nf-search input[type="search"] {
+	padding-left: 30px;
 }
 
 .iftp-nf-reset-filters {
@@ -914,10 +941,10 @@
 .iftp-nf-columns-trigger {
 	display: inline-flex;
 	align-items: center;
-	box-sizing: border-box !important;
+	box-sizing: border-box;
 	gap: 7px;
-	height: 32px !important;
-	padding: 0 12px !important;
+	height: 32px;
+	padding: 0 12px;
 	border: 1px solid var(--iftp-nf-gray-light);
 	border-radius: 6px;
 	background: #fff;
@@ -967,31 +994,27 @@
 	transition: background 0.1s ease, opacity 0.1s ease;
 }
 
-/* `!important` throughout this block: this menu is portaled onto `<body>`
-   (see `entries.js`, `createPortalDropdown()`), where WP core's own
-   `.wp-core-ui`/list-table styles carry enough specificity (and their own
-   `!important`s) to otherwise win over a plain class selector here. */
 .iftp-nf-column-item:hover {
-	background: var(--iftp-nf-blue-tint) !important;
+	background: var(--iftp-nf-blue-tint);
 }
 
 /* Same "goes blue" hover cue as every other item in this screen's
    dropdowns (`.iftp-nf-dropdown-item:hover`) — the plain background
    change above wasn't carrying that same cue on the column's own label. */
 .iftp-nf-column-item:hover .iftp-nf-column-toggle {
-	color: var(--iftp-nf-blue) !important;
+	color: var(--iftp-nf-blue);
 }
 
 .iftp-nf-column-item.is-dragging {
-	opacity: 0.4 !important;
+	opacity: 0.4;
 }
 
 .iftp-nf-column-item.is-drop-target {
-	border-top-color: var(--iftp-nf-blue) !important;
+	border-top-color: var(--iftp-nf-blue);
 }
 
 .iftp-nf-column-item.is-hidden {
-	color: var(--iftp-nf-gray-mid) !important;
+	color: var(--iftp-nf-gray-mid);
 }
 
 /* A real <button> (see `entries.js`) so ArrowUp/ArrowDown can reorder the
@@ -1007,7 +1030,7 @@
 	background: none;
 	padding: 0;
 	border-radius: 4px;
-	color: var(--iftp-nf-gray-mid) !important;
+	color: var(--iftp-nf-gray-mid);
 	font: inherit;
 	font-size: 12px;
 	line-height: 1;
@@ -1021,12 +1044,12 @@
 
 .iftp-nf-column-drag-handle:hover,
 .iftp-nf-column-drag-handle:focus {
-	color: var(--iftp-nf-blue) !important;
+	color: var(--iftp-nf-blue);
 	outline: none;
 }
 
 .iftp-nf-column-drag-handle:focus-visible {
-	box-shadow: 0 0 0 2px var(--iftp-nf-blue) !important;
+	box-shadow: 0 0 0 2px var(--iftp-nf-blue);
 }
 
 /* Sits where the drag handle would be, on a `positionLocked` column (ID,
@@ -1051,7 +1074,7 @@
 }
 
 .iftp-nf-column-toggle input[type="checkbox"] {
-	margin: 0 !important;
+	margin: 0;
 }
 
 /* A `visibilityLocked` column's checkbox (ID, Customer, Amount, Status) is
@@ -1081,9 +1104,10 @@
 	display: none;
 }
 
-.iftp-nf-entries-table{
-	border: 0px !important;
-	box-shadow: none !important;
+/* Beats core's `table.widefat` border/shadow (common.css). */
+#iftp-nf-entries .iftp-nf-entries-table {
+	border: 0;
+	box-shadow: none;
 }
 
 /* "Actions" bulk-actions trigger — lives in the header toolbar itself now,
@@ -1303,11 +1327,11 @@
 .iftp-nf-fake-select-trigger {
 	display: inline-flex;
 	align-items: center;
-	box-sizing: border-box !important;
+	box-sizing: border-box;
 	gap: 8px;
-	height: 32px !important;
+	height: 32px;
 	max-width: 220px;
-	padding: 0 10px !important;
+	padding: 0 10px;
 	border: 1px solid var(--iftp-nf-gray-light);
 	border-radius: 6px;
 	background: #fff;
@@ -1364,10 +1388,10 @@
 .iftp-nf-date-trigger {
 	display: inline-flex;
 	align-items: center;
-	box-sizing: border-box !important;
+	box-sizing: border-box;
 	gap: 7px;
-	height: 32px !important;
-	padding: 0 10px !important;
+	height: 32px;
+	padding: 0 10px;
 	border: 1px solid var(--iftp-nf-gray-light);
 	border-radius: 6px;
 	background: #fff;
@@ -1570,9 +1594,9 @@
 
 .iftp-nf-entries-card-footer.is-selecting .iftp-nf-page-btn:focus,
 .iftp-nf-entries-card-footer.is-selecting a.iftp-nf-page-number:focus {
-	border-color: #fff !important;
-	color: #fff !important;
-	box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35) !important;
+	border-color: #fff;
+	color: #fff;
+	box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
 }
 
 .iftp-nf-entries-card-footer.is-selecting .iftp-nf-page-number.is-current {
@@ -1587,18 +1611,22 @@
 }
 
 .iftp-nf-entries-card-footer.is-selecting .iftp-nf-page-jump-input {
-	border-color: rgba(255, 255, 255, 0.4) !important;
 	background: transparent;
-	color: #fff !important;
+}
+
+/* Page ID to stay ahead of the ID-scoped jump input rules further down. */
+#iftp-nf-entries .iftp-nf-entries-card-footer.is-selecting .iftp-nf-page-jump-input {
+	border-color: rgba(255, 255, 255, 0.4);
+	color: #fff;
 }
 
 .iftp-nf-entries-card-footer.is-selecting .iftp-nf-page-jump-input::placeholder {
 	color: rgba(255, 255, 255, 0.7);
 }
 
-.iftp-nf-entries-card-footer.is-selecting .iftp-nf-page-jump-input:focus {
-	border-color: #fff !important;
-	box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35) !important;
+#iftp-nf-entries .iftp-nf-entries-card-footer.is-selecting .iftp-nf-page-jump-input:focus {
+	border-color: #fff;
+	box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
 }
 
 .iftp-nf-entries-table-wrap {
@@ -1648,17 +1676,25 @@
 }
 
 .iftp-nf-entries-table thead th {
-	background: #fff !important;
-	border-bottom: 1px solid var(--iftp-nf-gray-light) !important;
-	color: var(--iftp-nf-gray-dark) !important;
 	font-size: 14px;
 	font-weight: 600;
 	letter-spacing: 0.04em;
-	padding: 8px 12px !important;
+}
+
+/* Page ID so these win over core's `.widefat thead tr th`/`.widefat td`
+   (common.css) and over this file's own per-column classes. */
+#iftp-nf-entries .iftp-nf-entries-table thead th {
+	background: #fff;
+	border-bottom: 1px solid var(--iftp-nf-gray-light);
+	color: var(--iftp-nf-gray-dark);
+	padding: 8px 12px;
+}
+
+#iftp-nf-entries .iftp-nf-entries-table tbody td {
+	padding: 6px 12px;
 }
 
 .iftp-nf-entries-table tbody td {
-	padding: 6px 12px !important;
 	font-size: 13px;
 	vertical-align: middle;
 	border-bottom: 1px solid var(--iftp-nf-gray-light);
@@ -1688,7 +1724,7 @@
 
 .iftp-nf-sortable,
 .iftp-nf-sort-icon {
-	color: var(--iftp-nf-blue) !important;
+	color: var(--iftp-nf-blue);
 	transition: color 0.15s ease, opacity 0.15s ease;
 }
 
@@ -1742,16 +1778,17 @@
 }
 
 .iftp-nf-col-check input[type="checkbox"] {
-	border: 1px solid var(--iftp-nf-gray-mid) !important;
+	border: 1px solid var(--iftp-nf-gray-mid);
 }
 
 .iftp-nf-col-check input[type="checkbox"]:focus {
-	border: 1px solid var(--iftp-nf-blue) !important;
+	border: 1px solid var(--iftp-nf-blue);
 }
 
-.iftp-main-checkbox{
-	margin-left: 0 !important;
-    margin-right: 4px !important;
+/* Beats core's `.widefat th input` margin (common.css). */
+#iftp-nf-entries .iftp-main-checkbox {
+	margin-left: 0;
+	margin-right: 4px;
 }
 
 .iftp-nf-entries-table .iftp-nf-col-narrow {
@@ -1778,11 +1815,14 @@
    fixed "customer" concept in a Ninja Forms submission), see
    `EntriesPage::customer_info()`. */
 .iftp-nf-customer-name {
+	min-height: 1lh;
 	font-weight: 600;
 	color: var(--iftp-nf-gray-dark);
 }
 
+/* `1lh` keeps a blank line as tall as a filled one. */
 .iftp-nf-customer-email {
+	min-height: 1lh;
 	color: var(--iftp-nf-gray-mid);
 	font-size: 12px;
 }
@@ -1967,18 +2007,17 @@
 	color: var(--iftp-nf-blue);
 }
 
-/* `!important` + the extra `button.…button-link`/`.iftp-nf-details-toggle`
-   specificity on View and Delete: both are real `<button class="button-link">`
-   elements (Edit Fields is a plain `<a>`), so WP core's own `.button-link`
-   color/underline rules otherwise win on hover — without this, View and
-   Delete never showed the hover underline Edit Fields got for free. */
+/* The extra `button.…button-link`/`.iftp-nf-details-toggle` specificity on
+   View and Delete: both are real `<button class="button-link">` elements
+   (Edit Fields is a plain `<a>`), so this has to out-rank core's
+   `.wp-core-ui .button-link` rules (buttons.css). */
 button.iftp-nf-row-action--view.iftp-nf-details-toggle:hover,
 button.iftp-nf-row-action--view.iftp-nf-details-toggle:focus {
-	text-decoration: underline !important;
+	text-decoration: underline;
 }
 
 button.iftp-nf-row-action--delete.button-link {
-	color: var(--iftp-nf-danger) !important;
+	color: var(--iftp-nf-danger);
 }
 
 .iftp-nf-row-action--edit:hover,
@@ -1988,8 +2027,8 @@ button.iftp-nf-row-action--delete.button-link {
 
 button.iftp-nf-row-action--delete.button-link:hover,
 button.iftp-nf-row-action--delete.button-link:focus {
-	color: var(--iftp-nf-danger) !important;
-	text-decoration: underline !important;
+	color: var(--iftp-nf-danger);
+	text-decoration: underline;
 }
 
 .iftp-nf-entry-row {
@@ -2022,6 +2061,27 @@ button.iftp-nf-row-action--delete.button-link:focus {
 	animation: iftp-nf-row-out 0.22s ease forwards;
 }
 
+/* Row-in stagger: 18ms per entry row, capped at 300ms. Entry rows sit at odd
+   positions since each is followed by its hidden details row. I leave
+   removing rows out so their fade-out starts straight away. */
+.iftp-nf-entry-row:not(.is-removing):nth-child(3) { animation-delay: 18ms; }
+.iftp-nf-entry-row:not(.is-removing):nth-child(5) { animation-delay: 36ms; }
+.iftp-nf-entry-row:not(.is-removing):nth-child(7) { animation-delay: 54ms; }
+.iftp-nf-entry-row:not(.is-removing):nth-child(9) { animation-delay: 72ms; }
+.iftp-nf-entry-row:not(.is-removing):nth-child(11) { animation-delay: 90ms; }
+.iftp-nf-entry-row:not(.is-removing):nth-child(13) { animation-delay: 108ms; }
+.iftp-nf-entry-row:not(.is-removing):nth-child(15) { animation-delay: 126ms; }
+.iftp-nf-entry-row:not(.is-removing):nth-child(17) { animation-delay: 144ms; }
+.iftp-nf-entry-row:not(.is-removing):nth-child(19) { animation-delay: 162ms; }
+.iftp-nf-entry-row:not(.is-removing):nth-child(21) { animation-delay: 180ms; }
+.iftp-nf-entry-row:not(.is-removing):nth-child(23) { animation-delay: 198ms; }
+.iftp-nf-entry-row:not(.is-removing):nth-child(25) { animation-delay: 216ms; }
+.iftp-nf-entry-row:not(.is-removing):nth-child(27) { animation-delay: 234ms; }
+.iftp-nf-entry-row:not(.is-removing):nth-child(29) { animation-delay: 252ms; }
+.iftp-nf-entry-row:not(.is-removing):nth-child(31) { animation-delay: 270ms; }
+.iftp-nf-entry-row:not(.is-removing):nth-child(33) { animation-delay: 288ms; }
+.iftp-nf-entry-row:not(.is-removing):nth-child(n+35) { animation-delay: 300ms; }
+
 @keyframes iftp-nf-row-in {
 	from {
 		opacity: 0;
@@ -2045,8 +2105,12 @@ button.iftp-nf-row-action--delete.button-link:focus {
 	}
 }
 
+/* Page ID to beat core's `.wp-core-ui .button-link` colour (buttons.css). */
+#iftp-nf-entries .iftp-nf-details-toggle {
+	color: var(--iftp-nf-blue);
+}
+
 .iftp-nf-details-toggle {
-	color: var(--iftp-nf-blue) !important;
 	cursor: pointer;
 }
 
@@ -2150,34 +2214,35 @@ button.iftp-nf-row-action--delete.button-link:focus {
 	margin-bottom: 8px;
 }
 
-.iftp-nf-details-fields-table {
-	width: 100%;
-	border-collapse: separate;
-	border-spacing: 0;
+.iftp-nf-details-fields-list {
+	margin: 0;
 }
 
-.iftp-nf-details-fields-table tr:not(:last-child) th,
-.iftp-nf-details-fields-table tr:not(:last-child) td {
+.iftp-nf-details-fields-list__row {
+	display: grid;
+	grid-template-columns: 25% minmax(0, 1fr);
+	align-items: start;
+}
+
+.iftp-nf-details-fields-list__row:not(:last-child) {
 	border-bottom: 1px solid var(--iftp-nf-gray-light);
 }
 
-.iftp-nf-details-fields-table th,
-.iftp-nf-details-fields-table td {
+.iftp-nf-details-fields-list dt,
+.iftp-nf-details-fields-list dd {
 	padding: 7px 10px;
 	font-size: 13px;
 	text-align: left;
-	vertical-align: top;
+	color: var(--iftp-nf-gray-dark);
 }
 
-.iftp-nf-details-fields-table th {
-	width: 25%;
-	color: var(--iftp-nf-gray-dark);
+.iftp-nf-details-fields-list dt {
 	font-weight: 600;
 	white-space: nowrap;
 }
 
-.iftp-nf-details-fields-table td {
-	color: var(--iftp-nf-gray-dark);
+.iftp-nf-details-fields-list dd {
+	margin: 0;
 	word-break: break-word;
 }
 
@@ -2358,8 +2423,8 @@ button.iftp-nf-row-action--delete.button-link:focus {
 .iftp-nf-fake-select--modal .iftp-nf-fake-select-trigger {
 	width: 100%;
 	max-width: none;
-	height: 36px !important;
-	padding: 0 12px !important;
+	height: 36px;
+	padding: 0 12px;
 	border-radius: 8px;
 	font-size: 13px;
 }
@@ -2580,10 +2645,10 @@ button.iftp-nf-row-action--delete.button-link:focus {
 /* `:focus`, not `:focus-visible` — see `a.iftp-nf-page-number:focus` below
    for why a mouse click needs the plain pseudo-class here too. */
 .iftp-nf-page-btn:focus {
-	outline: none !important;
-	border-color: var(--iftp-nf-blue) !important;
-	border-radius: 8px !important;
-	box-shadow: 0 0 0 2px var(--iftp-nf-blue-tint-strong) !important;
+	outline: none;
+	border-color: var(--iftp-nf-blue);
+	border-radius: 8px;
+	box-shadow: 0 0 0 2px var(--iftp-nf-blue-tint-strong);
 }
 
 .iftp-nf-page-btn.is-disabled {
@@ -2626,16 +2691,13 @@ a.iftp-nf-page-number:hover {
    click on an `<a>` "keyboard-relevant", so `:focus-visible` never matches
    here on a click, only on Tab — leaving WP core's own `a:focus` styles
    (plain black/blue outline, square corners) as the only thing visibly
-   applied, which is what looked like "nothing changed". `!important`
-   because WP core's admin CSS loads after this stylesheet and is specific
-   enough to still win otherwise, as with the `.button`/`.button-primary`
-   focus fix above. */
+   applied, which is what looked like "nothing changed". */
 a.iftp-nf-page-number:focus {
-	outline: none !important;
-	border-color: var(--iftp-nf-blue) !important;
-	border-radius: 8px !important;
-	color: var(--iftp-nf-gray-dark) !important;
-	box-shadow: 0 0 0 2px var(--iftp-nf-blue-tint-strong) !important;
+	outline: none;
+	border-color: var(--iftp-nf-blue);
+	border-radius: 8px;
+	color: var(--iftp-nf-gray-dark);
+	box-shadow: 0 0 0 2px var(--iftp-nf-blue-tint-strong);
 }
 
 .iftp-nf-page-number.is-current {
@@ -2655,22 +2717,22 @@ a.iftp-nf-page-number:focus {
 /* The right-hand "…" doubles as a jump-to-page field — it reads as a plain
    ellipsis via its placeholder until clicked, at which point typing a page
    number and pressing Enter navigates straight there (see `entries.js`,
-   `bindPageJumpInput()`). `!important` throughout: WP core's own
-   `input[type="text"]` rule (wp-admin/css/forms.css) sets `min-height: 40px`
-   and `padding: 0 12px` with slightly higher selector specificity than a
-   single class — `height` alone can't win against that `min-height` floor
-   regardless, so both need overriding explicitly, same as every other input
-   on this screen (`.iftp-nf-entries-filters input`, etc.). */
+   `bindPageJumpInput()`). Page ID because core's `input[type=text]` rule
+   (wp-admin/css/forms.css) out-ranks a single class on min-height (40px),
+   padding, border, radius and colour. */
+#iftp-nf-entries .iftp-nf-page-jump-input {
+	box-sizing: border-box;
+	width: 32px;
+	height: 32px;
+	min-height: 32px;
+	padding: 0 4px;
+	border: 1px solid var(--iftp-nf-gray-light);
+	border-radius: 8px;
+	color: var(--iftp-nf-gray-mid);
+}
+
 .iftp-nf-page-jump-input {
-	box-sizing: border-box !important;
-	width: 32px !important;
-	height: 32px !important;
-	min-height: 32px !important;
-	padding: 0 4px !important;
-	border: 1px solid var(--iftp-nf-gray-light) !important;
-	border-radius: 8px !important;
 	background: #fff;
-	color: var(--iftp-nf-gray-mid) !important;
 	font-size: 12px;
 	text-align: center;
 	appearance: textfield;
@@ -2682,10 +2744,14 @@ a.iftp-nf-page-number:focus {
 	opacity: 1;
 }
 
+/* Beats core's `input[type=text]:focus` outline (forms.css). */
+#iftp-nf-entries .iftp-nf-page-jump-input:focus {
+	outline: none;
+}
+
 .iftp-nf-page-jump-input:focus {
-	outline: none !important;
-	border-color: var(--iftp-nf-blue) !important;
-	box-shadow: 0 0 0 2px var(--iftp-nf-blue-tint-strong) !important;
+	border-color: var(--iftp-nf-blue);
+	box-shadow: 0 0 0 2px var(--iftp-nf-blue-tint-strong);
 	color: var(--iftp-nf-gray-dark);
 }
 
@@ -2794,7 +2860,7 @@ a.iftp-nf-page-number:focus {
 
 /* 2. Instant Cut State */
 .nf-spark-peeking-ninja-wrapper.nf-shy-ninja-no-transition {
-	transition: none !important;
+	transition: none;
 }
 
 /* 3. Hover step 1 & 3: hops out toward the middle of the screen, still visible. */
@@ -3119,6 +3185,26 @@ a.iftp-nf-page-number:focus {
 	font-weight: 600;
 }
 
+/* Popup Title (one per status panel) uses the same label, field width and
+   spacing as the Redirect URL and Popup Message controls. Pending/Failed/
+   Cancelled keep their "Popup Message" label straight in the panel, so it
+   gets the same label treatment here too. */
+#iftp-nf-confirmation-page .iftp-nf-popup-title-field {
+	margin-bottom: 18px;
+}
+
+#iftp-nf-confirmation-page .iftp-nf-popup-title-field > label:first-child,
+#iftp-nf-confirmation-page .iftp-nf-confirmation-panel > label {
+	display: block;
+	margin-bottom: 6px;
+	font-weight: 600;
+}
+
+#iftp-nf-confirmation-page .iftp-nf-popup-title-field input[type="text"] {
+	width: 100%;
+	max-width: 420px;
+}
+
 /* Popup message field: "Normal" (a `contenteditable` view, with a small
    bold/italic toolbar) and "Raw" (the underlying HTML in a plain
    `<textarea>`) — two synced views over the same value, at Victor's
@@ -3239,9 +3325,9 @@ a.iftp-nf-page-number:focus {
    rule above (covers the Payments tab identically, at Victor's request) —
    just a little extra horizontal padding here since these buttons sit
    inside a narrower card than the Payments tab's. */
-.iftp-nf-confirmation .button,
-.iftp-nf-confirmation .button-primary {
-	padding: 0 20px !important;
+#iftp-nf-confirmation-page .button,
+#iftp-nf-confirmation-page .button-primary {
+	padding: 0 20px;
 }
 
 /* WP admin footer on this plugin's own two settings tabs only (Payments,

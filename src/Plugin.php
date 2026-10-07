@@ -13,6 +13,7 @@ use Ifthenpay\NinjaForms\Ajax\FrontendController;
 use Ifthenpay\NinjaForms\Api\Webhook\WebhookController;
 use Ifthenpay\NinjaForms\Cron\ExpiredPaymentsCron;
 use Ifthenpay\NinjaForms\Gateway\IfthenpayGateway;
+use Ifthenpay\NinjaForms\NinjaForms\AdHocForm;
 use Ifthenpay\NinjaForms\NinjaForms\SubmissionStore;
 use Ifthenpay\NinjaForms\Repository\SettingsRepository;
 
@@ -43,6 +44,7 @@ class Plugin
     public function boot(): void
     {
         add_action('ninja_forms_loaded', [$this, 'register_gateway'], -5);
+        add_action('ninja_forms_after_form_delete', [AdHocForm::class, 'forget_form']);
 
         (new SettingsPage())->register();
         (new ConfirmationPage())->register();
@@ -52,12 +54,34 @@ class Plugin
         (new FrontendController())->register();
         (new WebhookController())->register();
         (new ExpiredPaymentsCron())->register();
+        // Activation only fires on a fresh install/reactivation, so a site
+        // that already had the plugin active when this cron shipped would
+        // never get the event scheduled — cheap to re-check every load since
+        // schedule() itself no-ops once wp_next_scheduled() finds it.
         ExpiredPaymentsCron::schedule();
 
         add_action('template_redirect', [$this, 'maybe_redirect_paid_confirmation']);
         add_action('wp_enqueue_scripts', [$this, 'maybe_enqueue_return_banner']);
         add_action('wp_footer', [$this, 'maybe_enqueue_pay_by_link_spinner'], 1);
         add_filter('render_block_ninja-forms/form', [$this, 'maybe_block_broken_gutenberg_block'], 10, 2);
+    }
+
+    /**
+     * The `?ver=` for one of our assets. While debugging it's the file's
+     * mtime, so an edited file can't hide behind a cached copy; in
+     * production it's the plugin version.
+     */
+    public static function asset_version(string $relative_path): string
+    {
+        if ((defined('WP_DEBUG') && WP_DEBUG) || (defined('SCRIPT_DEBUG') && SCRIPT_DEBUG)) {
+            $file = IFTP_NF_PATH . $relative_path;
+
+            if (file_exists($file)) {
+                return (string) filemtime($file);
+            }
+        }
+
+        return IFTP_NF_VERSION;
     }
 
     /**
@@ -77,14 +101,22 @@ class Plugin
      * Shared by the two return-handling methods below so both agree on the
      * exact same resolved status/record instead of re-parsing `$_GET` twice.
      *
-     * @return array{ref: string, record: array<string, mixed>, query_status: string, status: string}|null
+     * The customer lands here from ifthenpay's hosted page, so there's no
+     * nonce to check. The signed key in the URL is what proves the link is
+     * theirs.
+     *
+     * @return array{ref: string, key: string, record: array<string, mixed>, query_status: string, status: string, transaction_id: string}|null
      */
     private function resolve_return_context(): ?array
     {
-        $query_status = sanitize_text_field(wp_unslash($_GET['iftp_nf_pay'] ?? ''));
-        $ref          = sanitize_text_field(wp_unslash($_GET['ref'] ?? ''));
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended -- Return redirect from ifthenpay's hosted page; authenticated by the HMAC return key instead.
+        $query_status   = sanitize_text_field(wp_unslash($_GET[IfthenpayGateway::ARG_STATUS] ?? ''));
+        $ref            = sanitize_text_field(wp_unslash($_GET[IfthenpayGateway::ARG_REF] ?? ''));
+        $key            = sanitize_text_field(wp_unslash($_GET[IfthenpayGateway::ARG_KEY] ?? ''));
+        $transaction_id = sanitize_text_field(wp_unslash($_GET[IfthenpayGateway::ARG_TXN] ?? ''));
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended
 
-        if ('' === $query_status || '' === $ref) {
+        if ('' === $query_status || ! IfthenpayGateway::is_valid_return_key($ref, $key)) {
             return null;
         }
 
@@ -95,10 +127,13 @@ class Plugin
         }
 
         return [
-            'ref'          => $ref,
-            'record'       => $record,
-            'query_status' => $query_status,
-            'status'       => self::resolve_display_status((string) $record['status'], $query_status),
+            'ref'            => $ref,
+            'key'            => $key,
+            'record'         => $record,
+            'query_status'   => $query_status,
+            'status'         => self::resolve_display_status((string) $record['status'], $query_status),
+            // ifthenpay only fills this in on a genuine success return.
+            'transaction_id' => IfthenpayGateway::RETURN_STATUS_SUCCESS === $query_status ? $transaction_id : '',
         ];
     }
 
@@ -124,6 +159,12 @@ class Plugin
             return;
         }
 
+        // The admin chose this URL and it can be off-site, which
+        // wp_safe_redirect() would otherwise swap for wp-admin.
+        $host = (string) wp_parse_url($redirect_url, PHP_URL_HOST);
+
+        add_filter('allowed_redirect_hosts', static fn (array $hosts): array => array_merge($hosts, [$host]));
+
         wp_safe_redirect($redirect_url);
         exit;
     }
@@ -141,15 +182,8 @@ class Plugin
         $status       = $context['status'];
         $settings     = new SettingsRepository();
 
-        wp_enqueue_style('iftp-nf-frontend', IFTP_NF_URL . 'assets/css/frontend.css', [], IFTP_NF_VERSION);
-        wp_enqueue_script('iftp-nf-frontend', IFTP_NF_URL . 'assets/js/frontend.js', [], IFTP_NF_VERSION, true);
-
-        // Only present on a genuine success return — lets the frontend ask
-        // to resolve the payment right away instead of waiting on the
-        // async webhook.
-        $transaction_id = IfthenpayGateway::RETURN_STATUS_SUCCESS === $query_status
-            ? sanitize_text_field(wp_unslash($_GET['transaction_id'] ?? ''))
-            : '';
+        wp_enqueue_style('iftp-nf-frontend', IFTP_NF_URL . 'assets/css/frontend.css', [], self::asset_version('assets/css/frontend.css'));
+        wp_enqueue_script('iftp-nf-frontend', IFTP_NF_URL . 'assets/js/frontend.js', [], self::asset_version('assets/js/frontend.js'), true);
 
         // Only populated once this request has already resolved "paid" —
         // nothing about the submission should reach the browser before
@@ -162,13 +196,19 @@ class Plugin
             'status'          => $status,
             'message'         => self::status_message($status),
             'ref'             => $context['ref'],
+            'key'             => $context['key'],
             'formId'          => (int) $record['form_id'],
             'queryStatus'     => $query_status,
-            'transactionId'   => $transaction_id,
+            // Lets the frontend ask to resolve the payment right away
+            // instead of waiting on the async webhook.
+            'transactionId'   => $context['transaction_id'],
             // Only actually used if this payment is still unresolved now and
             // later resolves to "paid" during the frontend's live poll.
             'paidRedirectUrl' => $settings->get_paid_redirect_url(),
             'entryData'       => $entry_data,
+            // Every status's title up front, so a status that changes
+            // mid-poll gets its own title with no extra round trip.
+            'titles'          => self::status_titles($settings),
             'ajaxUrl'         => admin_url('admin-ajax.php'),
             'nonce'           => wp_create_nonce(FrontendController::NONCE_ACTION),
             'okLabel'         => __('OK', 'ifthenpay-payments-for-ninja-forms'),
@@ -193,12 +233,12 @@ class Plugin
             return;
         }
 
-        wp_enqueue_style('iftp-nf-frontend', IFTP_NF_URL . 'assets/css/frontend.css', [], IFTP_NF_VERSION);
+        wp_enqueue_style('iftp-nf-frontend', IFTP_NF_URL . 'assets/css/frontend.css', [], self::asset_version('assets/css/frontend.css'));
         wp_enqueue_script(
             'iftp-nf-pay-by-link',
             IFTP_NF_URL . 'assets/js/pay-by-link.js',
             ['jquery', 'nf-front-end'],
-            IFTP_NF_VERSION,
+            self::asset_version('assets/js/pay-by-link.js'),
             true
         );
 
@@ -216,6 +256,8 @@ class Plugin
      * Rather than send a customer to a real payment link for a submission
      * that was never going to be recorded, I replace the block's output
      * with a notice for editors, or nothing for a regular visitor.
+     *
+     * @param array<string, mixed> $block
      */
     public function maybe_block_broken_gutenberg_block(string $block_content, array $block): string
     {
@@ -299,6 +341,45 @@ class Plugin
         $configured = (new SettingsRepository())->get_confirmation_message($status);
 
         return '' !== $configured ? $configured : self::default_status_message($status);
+    }
+
+    /**
+     * Popup title per status, '' where the admin left it hidden.
+     *
+     * @return array<string, string>
+     */
+    public static function status_titles(SettingsRepository $settings): array
+    {
+        $titles = [];
+
+        foreach (SubmissionStore::ALL_STATUSES as $status) {
+            $title = $settings->get_confirmation_title($status);
+
+            if (! $title['shown']) {
+                $titles[$status] = '';
+                continue;
+            }
+
+            $titles[$status] = '' !== $title['text'] ? $title['text'] : self::default_status_title($status);
+        }
+
+        return $titles;
+    }
+
+    public static function default_status_title(string $status): string
+    {
+        switch ($status) {
+            case SubmissionStore::STATUS_PAID:
+                return __('Payment confirmed', 'ifthenpay-payments-for-ninja-forms');
+            case SubmissionStore::STATUS_FAILED:
+                return __('Payment failed', 'ifthenpay-payments-for-ninja-forms');
+            case SubmissionStore::STATUS_CANCELLED:
+                return __('Payment cancelled', 'ifthenpay-payments-for-ninja-forms');
+            case SubmissionStore::STATUS_EXPIRED:
+                return __('Payment link expired', 'ifthenpay-payments-for-ninja-forms');
+            default:
+                return __('Waiting for payment', 'ifthenpay-payments-for-ninja-forms');
+        }
     }
 
     public static function default_status_message(string $status): string

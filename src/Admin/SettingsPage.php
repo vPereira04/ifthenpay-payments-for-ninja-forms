@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ifthenpay\NinjaForms\Admin;
 
+use Ifthenpay\NinjaForms\Plugin;
 use Ifthenpay\NinjaForms\Repository\SettingsRepository;
 use Ifthenpay\NinjaForms\Sync\GatewaySync;
 
@@ -88,8 +89,8 @@ class SettingsPage
         $admin_css = 'assets/css/admin.css';
         $admin_js  = 'assets/js/admin.js';
 
-        wp_enqueue_style('iftp-nf-admin', IFTP_NF_URL . $admin_css, [], (string) filemtime(IFTP_NF_PATH . $admin_css));
-        wp_enqueue_script('iftp-nf-admin', IFTP_NF_URL . $admin_js, [], (string) filemtime(IFTP_NF_PATH . $admin_js), true);
+        wp_enqueue_style('iftp-nf-admin', IFTP_NF_URL . $admin_css, [], Plugin::asset_version($admin_css));
+        wp_enqueue_script('iftp-nf-admin', IFTP_NF_URL . $admin_js, [], Plugin::asset_version($admin_js), true);
 
         wp_localize_script('iftp-nf-admin', 'iftpNfAdmin', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
@@ -119,7 +120,7 @@ class SettingsPage
 
         $connected = $this->settings->is_connected();
         ?>
-        <div class="iftp-nf-settings">
+        <div class="iftp-nf-settings" id="iftp-nf-settings-page">
             <div class="iftp-nf-settings-header">
                 <span class="iftp-nf-brand-badge">
                     <img src="<?php echo esc_url(IFTP_NF_URL . 'assets/img/icon-white.svg'); ?>" alt="" />
@@ -141,7 +142,7 @@ class SettingsPage
                     </button>
                 <?php else : ?>
                     <p>
-                        <input type="text" id="iftp-nf-backoffice-key" placeholder="Insert your Backoffice Key here..." class="regular-text" />
+                        <input type="text" id="iftp-nf-backoffice-key" placeholder="<?php esc_attr_e('Insert your Backoffice Key here...', 'ifthenpay-payments-for-ninja-forms'); ?>" class="regular-text" />
                         <button type="button" class="button button-primary" id="iftp-nf-connect">
                             <?php esc_html_e('Connect', 'ifthenpay-payments-for-ninja-forms'); ?>
                         </button>
@@ -201,7 +202,7 @@ class SettingsPage
                     </div>
 
                     <p class="iftp-nf-save-row">
-                        <button type="iftp-nf-entries-filters-buttons submit" class="button button-primary" id="iftp-nf-save-settings">
+                        <button type="submit" class="button button-primary" id="iftp-nf-save-settings">
                             <span class="iftp-nf-spinner" aria-hidden="true"></span>
                             <?php esc_html_e('Save Settings', 'ifthenpay-payments-for-ninja-forms'); ?>
                         </button>
@@ -217,9 +218,6 @@ class SettingsPage
 
     private function is_payments_tab(): bool
     {
-        $page = sanitize_text_field(wp_unslash($_GET['page'] ?? ''));
-        $tab  = sanitize_text_field(wp_unslash($_GET['tab'] ?? ''));
-
-        return 'nf-settings' === $page && self::TAB_SLUG === $tab;
+        return AdminScreen::is('nf-settings', self::TAB_SLUG);
     }
 }

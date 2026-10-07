@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Ifthenpay\NinjaForms\Admin;
 
 use Ifthenpay\NinjaForms\NinjaForms\SubmissionStore;
+use Ifthenpay\NinjaForms\Plugin;
 use Ifthenpay\NinjaForms\Repository\SettingsRepository;
 
 if (! defined('ABSPATH')) {
@@ -74,30 +75,24 @@ class EntriesPage
         add_action('wp_ajax_iftp_nf_update_status', [$this, 'ajax_update_status']);
         add_action('wp_ajax_iftp_nf_create_entry', [$this, 'ajax_create_entry']);
         add_filter('admin_footer_text', [$this, 'inject_ninja_toggle']);
-        add_action('admin_head', [$this, 'print_menu_color_style']);
+        add_action('admin_enqueue_scripts', [$this, 'add_menu_color_style']);
     }
 
     /**
-     * I color this screen's submenu link green so it stands out. This runs
-     * on every admin_head rather than enqueue_assets(), since #adminmenu
-     * renders on every wp-admin screen — !important beats WP core's own
-     * selectors here.
+     * I color this screen's submenu link green so it stands out. #adminmenu
+     * renders on every wp-admin screen, so I attach this to core's own
+     * admin-menu stylesheet instead of loading a file of ours everywhere.
+     * The !important beats the admin color schemes' own link colors.
      */
-    public function print_menu_color_style(): void
+    public function add_menu_color_style(): void
     {
-        ?>
-        <style>
-            #adminmenu a[href*="page=<?php echo esc_attr(self::PAGE_SLUG); ?>"] {
-                color: #84cc1e !important;
-            }
+        $link = '#adminmenu a[href*="page=' . self::PAGE_SLUG . '"]';
 
-            #adminmenu a[href*="page=<?php echo esc_attr(self::PAGE_SLUG); ?>"]:hover,
-            #adminmenu a[href*="page=<?php echo esc_attr(self::PAGE_SLUG); ?>"]:focus,
-            #adminmenu li.current a[href*="page=<?php echo esc_attr(self::PAGE_SLUG); ?>"] {
-                color: #9ee62a !important;
-            }
-        </style>
-        <?php
+        wp_add_inline_style(
+            'admin-menu',
+            $link . ' { color: #84cc1e !important; }'
+            . $link . ':hover, ' . $link . ':focus, #adminmenu li.current a[href*="page=' . self::PAGE_SLUG . '"] { color: #9ee62a !important; }'
+        );
     }
 
     public function add_menu_page(): void
@@ -121,8 +116,8 @@ class EntriesPage
         $admin_css  = 'assets/css/admin.css';
         $entries_js = 'assets/js/entries.js';
 
-        wp_enqueue_style('iftp-nf-admin', IFTP_NF_URL . $admin_css, [], (string) filemtime(IFTP_NF_PATH . $admin_css));
-        wp_enqueue_script('iftp-nf-entries', IFTP_NF_URL . $entries_js, [], (string) filemtime(IFTP_NF_PATH . $entries_js), true);
+        wp_enqueue_style('iftp-nf-admin', IFTP_NF_URL . $admin_css, [], Plugin::asset_version($admin_css));
+        wp_enqueue_script('iftp-nf-entries', IFTP_NF_URL . $entries_js, [], Plugin::asset_version($entries_js), true);
 
         wp_localize_script('iftp-nf-entries', 'iftpNfEntries', [
             'ajaxUrl'        => admin_url('admin-ajax.php'),
@@ -184,10 +179,9 @@ class EntriesPage
             return $footer_text;
         }
 
-        $button = sprintf(
-            '<button type="button" class="iftp-nf-ninja-toggle" id="iftp-nf-ninja-toggle" aria-label="%s" aria-pressed="false"></button>',
-            esc_attr__('Toggle ninja', 'ifthenpay-payments-for-ninja-forms')
-        );
+        $button = '<button type="button" class="iftp-nf-ninja-toggle" id="iftp-nf-ninja-toggle" aria-label="'
+            . esc_attr__('Toggle ninja', 'ifthenpay-payments-for-ninja-forms')
+            . '" aria-pressed="false"></button>';
 
         return $button . $footer_text;
     }
@@ -201,10 +195,7 @@ class EntriesPage
     public function ajax_delete_entries(): void
     {
         check_ajax_referer(self::NONCE_ACTION, 'nonce');
-
-        if (! current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('You are not allowed to do this.', 'ifthenpay-payments-for-ninja-forms')], 403);
-        }
+        $this->authorize();
 
         $refs = array_map('sanitize_text_field', wp_unslash((array) ($_POST['refs'] ?? [])));
         $deleted = 0;
@@ -220,13 +211,13 @@ class EntriesPage
 
         $search      = sanitize_text_field(wp_unslash($_POST['s'] ?? ''));
         $view_status = sanitize_text_field(wp_unslash($_POST['view_status'] ?? ''));
-        $form_filter = (int) ($_POST['form_id'] ?? 0);
-        $date_from   = $this->sanitize_date($_POST['date_from'] ?? '');
-        $date_to     = $this->sanitize_date($_POST['date_to'] ?? '');
-        $orderby     = $this->sanitize_orderby($_POST['orderby'] ?? '');
-        $order       = '' !== $orderby ? $this->sanitize_order($_POST['order'] ?? '') : '';
-        $per_page    = $this->sanitize_per_page($_POST['per_page'] ?? '');
-        $paged       = max(1, (int) ($_POST['paged'] ?? 1));
+        $form_filter = absint(wp_unslash($_POST['form_id'] ?? 0));
+        $date_from   = $this->sanitize_date(sanitize_text_field(wp_unslash($_POST['date_from'] ?? '')));
+        $date_to     = $this->sanitize_date(sanitize_text_field(wp_unslash($_POST['date_to'] ?? '')));
+        $orderby     = $this->sanitize_orderby(sanitize_text_field(wp_unslash($_POST['orderby'] ?? '')));
+        $order       = '' !== $orderby ? $this->sanitize_order(sanitize_text_field(wp_unslash($_POST['order'] ?? ''))) : '';
+        $per_page    = $this->sanitize_per_page(sanitize_text_field(wp_unslash($_POST['per_page'] ?? '')));
+        $paged       = max(1, absint(wp_unslash($_POST['paged'] ?? 1)));
 
         $search_form_ids = [];
 
@@ -301,12 +292,9 @@ class EntriesPage
     public function ajax_create_entry(): void
     {
         check_ajax_referer(self::NONCE_ACTION, 'nonce');
+        $this->authorize();
 
-        if (! current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('You are not allowed to do this.', 'ifthenpay-payments-for-ninja-forms')], 403);
-        }
-
-        $amount = (float) ($_POST['amount'] ?? 0);
+        $amount = (float) sanitize_text_field(wp_unslash($_POST['amount'] ?? '0'));
 
         if ($amount <= 0) {
             wp_send_json_error(['message' => __('Enter an amount greater than zero.', 'ifthenpay-payments-for-ninja-forms')], 400);
@@ -352,13 +340,13 @@ class EntriesPage
 
         $search      = sanitize_text_field(wp_unslash($_POST['view_s'] ?? ''));
         $view_status = sanitize_text_field(wp_unslash($_POST['view_status'] ?? ''));
-        $form_filter = (int) ($_POST['view_form_id'] ?? 0);
-        $date_from   = $this->sanitize_date($_POST['view_date_from'] ?? '');
-        $date_to     = $this->sanitize_date($_POST['view_date_to'] ?? '');
-        $orderby     = $this->sanitize_orderby($_POST['view_orderby'] ?? '');
-        $order       = '' !== $orderby ? $this->sanitize_order($_POST['view_order'] ?? '') : '';
-        $per_page    = $this->sanitize_per_page($_POST['view_per_page'] ?? '');
-        $paged       = max(1, (int) ($_POST['view_paged'] ?? 1));
+        $form_filter = absint(wp_unslash($_POST['view_form_id'] ?? 0));
+        $date_from   = $this->sanitize_date(sanitize_text_field(wp_unslash($_POST['view_date_from'] ?? '')));
+        $date_to     = $this->sanitize_date(sanitize_text_field(wp_unslash($_POST['view_date_to'] ?? '')));
+        $orderby     = $this->sanitize_orderby(sanitize_text_field(wp_unslash($_POST['view_orderby'] ?? '')));
+        $order       = '' !== $orderby ? $this->sanitize_order(sanitize_text_field(wp_unslash($_POST['view_order'] ?? ''))) : '';
+        $per_page    = $this->sanitize_per_page(sanitize_text_field(wp_unslash($_POST['view_per_page'] ?? '')));
+        $paged       = max(1, absint(wp_unslash($_POST['view_paged'] ?? 1)));
 
         $search_form_ids = [];
 
@@ -423,10 +411,7 @@ class EntriesPage
     public function ajax_update_status(): void
     {
         check_ajax_referer(self::NONCE_ACTION, 'nonce');
-
-        if (! current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('You are not allowed to do this.', 'ifthenpay-payments-for-ninja-forms')], 403);
-        }
+        $this->authorize();
 
         $status = sanitize_text_field(wp_unslash($_POST['status'] ?? ''));
 
@@ -452,11 +437,11 @@ class EntriesPage
         // full reload.
         $search      = sanitize_text_field(wp_unslash($_POST['s'] ?? ''));
         $view_status = sanitize_text_field(wp_unslash($_POST['view_status'] ?? ''));
-        $form_filter = (int) ($_POST['form_id'] ?? 0);
-        $date_from   = $this->sanitize_date($_POST['date_from'] ?? '');
-        $date_to     = $this->sanitize_date($_POST['date_to'] ?? '');
-        $per_page    = $this->sanitize_per_page($_POST['per_page'] ?? '');
-        $paged       = max(1, (int) ($_POST['paged'] ?? 1));
+        $form_filter = absint(wp_unslash($_POST['form_id'] ?? 0));
+        $date_from   = $this->sanitize_date(sanitize_text_field(wp_unslash($_POST['date_from'] ?? '')));
+        $date_to     = $this->sanitize_date(sanitize_text_field(wp_unslash($_POST['date_to'] ?? '')));
+        $per_page    = $this->sanitize_per_page(sanitize_text_field(wp_unslash($_POST['per_page'] ?? '')));
+        $paged       = max(1, absint(wp_unslash($_POST['paged'] ?? 1)));
 
         $search_form_ids = [];
 
@@ -493,6 +478,13 @@ class EntriesPage
         ]);
     }
 
+    private function authorize(): void
+    {
+        if (! current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('You are not allowed to do this.', 'ifthenpay-payments-for-ninja-forms')], 403);
+        }
+    }
+
     public function render(): void
     {
         if (! current_user_can('manage_options')) {
@@ -510,9 +502,9 @@ class EntriesPage
         $form_filter   = $filters['form_id'];
         $date_from     = $filters['date_from'];
         $date_to       = $filters['date_to'];
-        $orderby       = $this->sanitize_orderby($_GET['orderby'] ?? '');
-        $order         = '' !== $orderby ? $this->sanitize_order($_GET['order'] ?? '') : '';
-        $per_page      = $this->sanitize_per_page($_GET['per_page'] ?? '');
+        $orderby       = $filters['orderby'];
+        $order         = $filters['order'];
+        $per_page      = $filters['per_page'];
 
         $available_forms = $this->available_forms();
 
@@ -542,7 +534,7 @@ class EntriesPage
             'orderby'   => $orderby,
             'order'     => $order,
             'per_page'  => $per_page,
-            'paged'     => (int) ($_GET['paged'] ?? 1),
+            'paged'     => $filters['paged'],
         ]);
 
         $slice  = $result['items'];
@@ -552,7 +544,7 @@ class EntriesPage
         $counts = $this->submissions->status_counts($shared_filters);
         ?>
 
-        <div class="wrap iftp-nf-entries">
+        <div class="wrap iftp-nf-entries" id="iftp-nf-entries">
             <?php $this->render_peeking_ninja(); ?>
 
             <h1><?php esc_html_e('ifthenpay Entries', 'ifthenpay-payments-for-ninja-forms'); ?></h1>
@@ -612,7 +604,7 @@ class EntriesPage
 
                         <div class="iftp-nf-search">
                             <span class="dashicons dashicons-search" aria-hidden="true"></span>
-                            <input style="padding-left: 30px !important;"
+                            <input
                                 type="search"
                                 name="s"
                                 value="<?php echo esc_attr($search); ?>"
@@ -720,19 +712,19 @@ class EntriesPage
                                 <th class="iftp-nf-col-check">
                                     <input type="checkbox" class="iftp-main-checkbox" data-iftp-select-all aria-label="<?php esc_attr_e('Select all', 'ifthenpay-payments-for-ninja-forms'); ?>" />
                                 </th>
-                                <th class="iftp-nf-col-narrow" data-col="id"><?php echo $this->sort_link('id', __('ID', 'ifthenpay-payments-for-ninja-forms'), $orderby, $order); ?></th>
+                                <th class="iftp-nf-col-narrow" data-col="id"><?php $this->render_sort_link('id', __('ID', 'ifthenpay-payments-for-ninja-forms'), $orderby, $order); ?></th>
                                 <th data-col="customer"><?php esc_html_e('Customer', 'ifthenpay-payments-for-ninja-forms'); ?></th>
                                 <th data-col="form"><?php esc_html_e('Form', 'ifthenpay-payments-for-ninja-forms'); ?></th>
                                 <th data-col="method"><?php esc_html_e('Method', 'ifthenpay-payments-for-ninja-forms'); ?></th>
                                 <th class="iftp-nf-col-narrow" data-col="submission_id"><?php esc_html_e('Submission ID', 'ifthenpay-payments-for-ninja-forms'); ?></th>
-                                <th class="iftp-nf-col-amount" data-col="amount"><?php echo $this->sort_link('amount', __('Amount', 'ifthenpay-payments-for-ninja-forms'), $orderby, $order); ?></th>
-                                <th data-col="status"><?php echo $this->sort_link('status', __('Status', 'ifthenpay-payments-for-ninja-forms'), $orderby, $order); ?></th>
+                                <th class="iftp-nf-col-amount" data-col="amount"><?php $this->render_sort_link('amount', __('Amount', 'ifthenpay-payments-for-ninja-forms'), $orderby, $order); ?></th>
+                                <th data-col="status"><?php $this->render_sort_link('status', __('Status', 'ifthenpay-payments-for-ninja-forms'), $orderby, $order); ?></th>
                                 <th data-col="payment_link"><?php esc_html_e('Payment Link', 'ifthenpay-payments-for-ninja-forms'); ?></th>
-                                <th data-col="date"><?php echo $this->sort_link('created', __('Date', 'ifthenpay-payments-for-ninja-forms'), $orderby, $order); ?></th>
+                                <th data-col="date"><?php $this->render_sort_link('created', __('Date', 'ifthenpay-payments-for-ninja-forms'), $orderby, $order); ?></th>
                             </tr>
                         </thead>
                         <tbody data-iftp-entries-body>
-                            <?php echo $this->render_rows_html($slice); ?>
+                            <?php $this->render_rows($slice); ?>
                         </tbody>
                     </table>
                 </div>
@@ -865,16 +857,25 @@ class EntriesPage
     }
 
     /**
-     * The tbody contents for a page of entries. Shared by the initial
-     * render and the delete AJAX handler, so a deleted row's page refills
-     * from the next page instead of just leaving a gap.
+     * The tbody contents for a page of entries, buffered for the AJAX
+     * handlers so a deleted row's page refills from the next page instead
+     * of just leaving a gap.
      *
      * @param array<int, array<string, mixed>> $slice
      */
     private function render_rows_html(array $slice): string
     {
         ob_start();
+        $this->render_rows($slice);
 
+        return (string) ob_get_clean();
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $slice
+     */
+    private function render_rows(array $slice): void
+    {
         if ([] === $slice) {
             ?>
             <tr>
@@ -887,12 +888,10 @@ class EntriesPage
             </tr>
             <?php
         } else {
-            foreach ($slice as $index => $record) {
-                $this->render_row($record, $index);
+            foreach ($slice as $record) {
+                $this->render_row($record);
             }
         }
-
-        return (string) ob_get_clean();
     }
 
     /**
@@ -950,7 +949,7 @@ class EntriesPage
         $show_right_ellipsis = $show_last && $window_end < $pages - 1;
         ?>
         <nav class="iftp-nf-pagination" aria-label="<?php esc_attr_e('Entries pagination', 'ifthenpay-payments-for-ninja-forms'); ?>">
-            <?php echo $this->pagination_nav_link($paged - 1, $paged > 1, __('Previous page', 'ifthenpay-payments-for-ninja-forms'), 'prev', $base); ?>
+            <?php $this->render_pagination_nav_link($paged - 1, $paged > 1, __('Previous page', 'ifthenpay-payments-for-ninja-forms'), 'prev', $base); ?>
 
             <span class="iftp-nf-page-numbers">
                 <?php if ($show_page_one) : ?>
@@ -1004,7 +1003,7 @@ class EntriesPage
                 <?php endif; ?>
             </span>
 
-            <?php echo $this->pagination_nav_link($paged + 1, $paged < $pages, __('Next page', 'ifthenpay-payments-for-ninja-forms'), 'next', $base); ?>
+            <?php $this->render_pagination_nav_link($paged + 1, $paged < $pages, __('Next page', 'ifthenpay-payments-for-ninja-forms'), 'next', $base); ?>
         </nav>
         <?php
     }
@@ -1012,24 +1011,19 @@ class EntriesPage
     /**
      * @param array<string, mixed>|null $base See `render_pagination()`.
      */
-    private function pagination_nav_link(int $target_page, bool $enabled, string $label, string $direction, ?array $base = null): string
+    private function render_pagination_nav_link(int $target_page, bool $enabled, string $label, string $direction, ?array $base = null): void
     {
-        $points = 'prev' === $direction ? '15 18 9 12 15 6' : '9 18 15 12 9 6';
-        $svg    = sprintf(
-            '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="%s" /></svg>',
-            esc_attr($points)
-        );
-
-        if (! $enabled) {
-            return sprintf('<span class="iftp-nf-page-btn is-disabled" aria-hidden="true">%s</span>', $svg);
+        if ($enabled) {
+            echo '<a class="iftp-nf-page-btn" href="' . esc_url($this->filtered_url(['paged' => $target_page], false, $base)) . '" aria-label="' . esc_attr($label) . '">';
+        } else {
+            echo '<span class="iftp-nf-page-btn is-disabled" aria-hidden="true">';
         }
 
-        return sprintf(
-            '<a class="iftp-nf-page-btn" href="%1$s" aria-label="%2$s">%3$s</a>',
-            esc_url($this->filtered_url(['paged' => $target_page], false, $base)),
-            esc_attr($label),
-            $svg
-        );
+        echo '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="'
+            . esc_attr('prev' === $direction ? '15 18 9 12 15 6' : '9 18 15 12 9 6')
+            . '" /></svg>';
+
+        echo $enabled ? '</a>' : '</span>';
     }
 
     /**
@@ -1058,7 +1052,7 @@ class EntriesPage
     /**
      * @param array<string, mixed> $record
      */
-    private function render_row(array $record, int $index = 0): void
+    private function render_row(array $record): void
     {
         // sub_id is the WP post ID, reserved up front for every attempt —
         // it's what the payment reference is built from and what links
@@ -1070,10 +1064,6 @@ class EntriesPage
         // never mistaken for a real payment.
         $is_test = ! empty($record['is_test']);
         $row_id  = 'iftp-nf-details-' . sanitize_html_class($record['ref']);
-        // I stagger each row's fade-in a bit past the previous one's,
-        // capped so a long page doesn't leave the last rows waiting too
-        // long.
-        $delay_ms    = min($index * 18, 300);
         $customer    = $this->customer_info($record);
         $payment_url = (string) ($record['payment_url'] ?? '');
         // Ninja Forms' own per-form sequential "Submission ID" — its own
@@ -1081,7 +1071,7 @@ class EntriesPage
         // (`organizable_columns()`), not tucked inside the details panel.
         $seq_num = $record['data']['actions']['save']['seq_num'] ?? null;
         ?>
-        <tr class="iftp-nf-entry-row" data-iftp-ref="<?php echo esc_attr($record['ref']); ?>" style="animation-delay: <?php echo esc_attr((string) $delay_ms); ?>ms">
+        <tr class="iftp-nf-entry-row" data-iftp-ref="<?php echo esc_attr($record['ref']); ?>">
             <td class="iftp-nf-col-check">
                 <input type="checkbox" class="iftp-nf-row-check" data-iftp-row-check value="<?php echo esc_attr($record['ref']); ?>" aria-label="<?php esc_attr_e('Select entry', 'ifthenpay-payments-for-ninja-forms'); ?>" />
             </td>
@@ -1091,35 +1081,31 @@ class EntriesPage
                         <span class="iftp-nf-test-badge"><?php esc_html_e('TEST', 'ifthenpay-payments-for-ninja-forms'); ?></span>
                         <?php echo esc_html($record['ref']); ?>
                     <?php else : ?>
-                        <?php echo esc_html(null !== $sub_id ? (string) $sub_id : '—'); ?>
+                        <?php $this->render_value(null !== $sub_id ? (string) $sub_id : ''); ?>
                     <?php endif; ?>
                 </span>
                 <?php $this->render_id_row_actions($record, $sub_id, $row_id); ?>
             </td>
             <td class="iftp-nf-col-customer" data-col="customer">
                 <?php
-                // Both lines always render (blank rather than collapsed when
-                // there's no email) so every row reserves the same height
-                // regardless of whether this particular customer has one —
-                // at Victor's request, so rows don't visibly vary in height
-                // depending on what got submitted.
+                // Both lines always render, even blank, and admin.css gives
+                // each a one-line min-height, so rows don't vary in height
+                // with what got submitted (at Victor's request).
                 ?>
                 <div class="iftp-nf-customer-name">
                     <?php
                     if ('' !== $customer['name']) {
                         echo esc_html($customer['name']);
                     } elseif ('' === $customer['email']) {
-                        echo '&mdash;';
-                    } else {
-                        echo '&nbsp;';
+                        $this->render_value('');
                     }
                     ?>
                 </div>
-                <div class="iftp-nf-customer-email"><?php echo '' !== $customer['email'] ? esc_html($customer['email']) : '&nbsp;'; ?></div>
+                <div class="iftp-nf-customer-email"><?php echo esc_html($customer['email']); ?></div>
             </td>
             <td data-col="form"><?php echo esc_html($this->form_title((int) $record['form_id'])); ?></td>
             <td data-col="method"><?php $this->render_method_cell((string) $record['pay_method']); ?></td>
-            <td class="iftp-nf-col-narrow" data-col="submission_id"><?php echo esc_html(null !== $seq_num ? (string) $seq_num : '—'); ?></td>
+            <td class="iftp-nf-col-narrow" data-col="submission_id"><?php $this->render_value(null !== $seq_num ? (string) $seq_num : ''); ?></td>
             <td class="iftp-nf-col-amount" data-col="amount"><?php echo esc_html(number_format((float) $record['amount'], 2)); ?></td>
             <td data-col="status">
                 <?php
@@ -1140,10 +1126,10 @@ class EntriesPage
                         <span class="dashicons dashicons-external" aria-hidden="true"></span>
                     </a>
                 <?php else : ?>
-                    <span class="iftp-nf-payment-link-empty">&mdash;</span>
+                    <span class="iftp-nf-payment-link-empty"><?php $this->render_value(''); ?></span>
                 <?php endif; ?>
             </td>
-            <td data-col="date"><?php echo esc_html(wp_date('Y-m-d H:i', (int) $record['created_at'])); ?></td>
+            <td data-col="date"><?php echo esc_html((string) wp_date('Y-m-d H:i', (int) $record['created_at'])); ?></td>
         </tr>
         <tr id="<?php echo esc_attr($row_id); ?>" class="iftp-nf-entry-details" hidden>
             <td colspan="10">
@@ -1163,6 +1149,7 @@ class EntriesPage
      * delete.
      *
      * @param array<string, mixed> $record
+     * @param int|string|null      $sub_id
      */
     private function render_id_row_actions(array $record, $sub_id, string $row_id): void
     {
@@ -1184,6 +1171,21 @@ class EntriesPage
             </button>
         </div>
         <?php
+    }
+
+    /**
+     * Prints `$value`, or the core list-table "no value" dash when it's
+     * empty: a dash on screen, a word for screen readers.
+     */
+    private function render_value(string $value): void
+    {
+        if ('' !== $value) {
+            echo esc_html($value);
+
+            return;
+        }
+
+        echo '<span aria-hidden="true">&#8212;</span><span class="screen-reader-text">' . esc_html__('None', 'ifthenpay-payments-for-ninja-forms') . '</span>';
     }
 
     /**
@@ -1248,7 +1250,7 @@ class EntriesPage
                 </div>
                 <div class="iftp-nf-detail-item">
                     <span class="iftp-nf-detail-label"><?php esc_html_e('Request ID', 'ifthenpay-payments-for-ninja-forms'); ?></span>
-                    <span class="iftp-nf-detail-value"><?php echo esc_html('' !== $record['request_id'] ? $record['request_id'] : '—'); ?></span>
+                    <span class="iftp-nf-detail-value"><?php $this->render_value((string) ($record['request_id'] ?? '')); ?></span>
                 </div>
                 <div class="iftp-nf-detail-item">
                     <span class="iftp-nf-detail-label"><?php esc_html_e('Transaction ID', 'ifthenpay-payments-for-ninja-forms'); ?></span>
@@ -1259,8 +1261,7 @@ class EntriesPage
                     // (which only gets set once the payment actually confirms
                     // paid) — so it stays visible even if confirmation never
                     // came through.
-                    $transaction_id = (string) ($record['transaction_id'] ?? '');
-                    echo esc_html('' !== $transaction_id ? $transaction_id : '—');
+                    $this->render_value((string) ($record['transaction_id'] ?? ''));
                     ?>
                     </span>
                 </div>
@@ -1272,7 +1273,7 @@ class EntriesPage
                             <?php echo esc_html($payment_url); ?>
                         </a>
                     <?php else : ?>
-                        <span class="iftp-nf-detail-value">&mdash;</span>
+                        <span class="iftp-nf-detail-value"><?php $this->render_value(''); ?></span>
                     <?php endif; ?>
                 </div>
                 <div class="iftp-nf-detail-item">
@@ -1283,7 +1284,7 @@ class EntriesPage
                 </div>
                 <div class="iftp-nf-detail-item">
                     <span class="iftp-nf-detail-label"><?php esc_html_e('Last Updated', 'ifthenpay-payments-for-ninja-forms'); ?></span>
-                    <span class="iftp-nf-detail-value"><?php echo esc_html(wp_date('Y-m-d H:i', (int) $record['updated_at'])); ?></span>
+                    <span class="iftp-nf-detail-value"><?php echo esc_html((string) wp_date('Y-m-d H:i', (int) $record['updated_at'])); ?></span>
                 </div>
             </div>
             <?php
@@ -1293,16 +1294,14 @@ class EntriesPage
                 ?>
                 <div class="iftp-nf-details-fields">
                     <span class="iftp-nf-detail-label iftp-nf-details-fields-label"><?php esc_html_e('Submitted Fields', 'ifthenpay-payments-for-ninja-forms'); ?></span>
-                    <table class="iftp-nf-details-fields-table">
-                        <tbody>
-                            <?php foreach ($fields as $label => $value) : ?>
-                                <tr>
-                                    <th><?php echo esc_html($label); ?></th>
-                                    <td><?php echo esc_html($value); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                    <dl class="iftp-nf-details-fields-list">
+                        <?php foreach ($fields as $label => $value) : ?>
+                            <div class="iftp-nf-details-fields-list__row">
+                                <dt><?php echo esc_html($label); ?></dt>
+                                <dd><?php echo esc_html($value); ?></dd>
+                            </div>
+                        <?php endforeach; ?>
+                    </dl>
                 </div>
                 <?php
             endif;
@@ -1325,21 +1324,15 @@ class EntriesPage
         <div class="nf-spark-peeking-ninja-wrapper nf-shy-ninja-home nf-shy-ninja-hidden" id="nf-peeking-ninja-wrapper">
             <div class="nf-spark-peeking-ninja" id="nf-peeking-ninja">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200.29 89.86">
-                    <defs>
-                        <style>
-                            .peek-face { fill:#fff; }
-                            .peek-head { fill:currentColor; }
-                        </style>
-                    </defs>
                     <g>
                         <!-- Cabeça do Ninja -->
-                        <path class="peek-head" d="M171.62,89.86c.02-.17.04-1.65.04-2.48,0-12.97-2.89-25.2-8.05-36.23-.81-2.1-1.92-4.23-3.18-6.37,10.27-3.45,20.32-5.38,27.76-6.9h.01c9.06-1.86,14.26-3.05,11.22-5.54-6.62-5.41-15.03-11.27-15.03-11.27,0,0,33.81-27.94,0-19.48-6.37,1.59-11.96,3.98-16.87,6.79-9.44,5.4-16.29,12.39-20.97,18.48C131.01,11.32,109.55,1.69,85.83,1.69,38.43,1.69,0,39.99,0,87.39c0,.84.04,2.31.04,2.48h171.58Z"></path>
+                        <path fill="currentColor" d="M171.62,89.86c.02-.17.04-1.65.04-2.48,0-12.97-2.89-25.2-8.05-36.23-.81-2.1-1.92-4.23-3.18-6.37,10.27-3.45,20.32-5.38,27.76-6.9h.01c9.06-1.86,14.26-3.05,11.22-5.54-6.62-5.41-15.03-11.27-15.03-11.27,0,0,33.81-27.94,0-19.48-6.37,1.59-11.96,3.98-16.87,6.79-9.44,5.4-16.29,12.39-20.97,18.48C131.01,11.32,109.55,1.69,85.83,1.69,38.43,1.69,0,39.99,0,87.39c0,.84.04,2.31.04,2.48h171.58Z"></path>
 
                         <!-- Face/Máscara Branca do Ninja -->
-                        <path class="peek-face" d="M53.4,77.76c4.69,0,8.51,5.4,8.62,12.11h47.65c.11-6.71,3.92-12.11,8.62-12.11s8.51,5.4,8.62,12.11h20.31c-.35-10.72-6.21-21.09-16.36-26.7-26.69-14.74-61.81-14.79-89.48-.24-10.46,5.5-16.57,15.14-16.93,26.94h20.33c.11-6.71,3.91-12.11,8.62-12.11Z"></path>
+                        <path fill="#fff" d="M53.4,77.76c4.69,0,8.51,5.4,8.62,12.11h47.65c.11-6.71,3.92-12.11,8.62-12.11s8.51,5.4,8.62,12.11h20.31c-.35-10.72-6.21-21.09-16.36-26.7-26.69-14.74-61.81-14.79-89.48-.24-10.46,5.5-16.57,15.14-16.93,26.94h20.33c.11-6.71,3.91-12.11,8.62-12.11Z"></path>
 
                         <!-- Ícone Ifthenpay (icon-white.svg) - Maior e mais acima -->
-                        <image href="/wp-content/plugins/ifthenpay-payments-for-ninja-forms/assets/img/icon-white.svg"
+                        <image href="<?php echo esc_url(IFTP_NF_URL . 'assets/img/icon-white.svg'); ?>"
                             x="71.5"
                             y="16"
                             width="30"
@@ -1373,7 +1366,7 @@ class EntriesPage
     private function render_method_cell(string $pay_method): void
     {
         if ('' === $pay_method) {
-            echo '&mdash;';
+            $this->render_value('');
 
             return;
         }
@@ -1462,13 +1455,11 @@ class EntriesPage
         $catalog = [];
 
         foreach ($this->settings->get_methods() as $method) {
-            $entity = (string) ($method['entity'] ?? '');
-
-            if ('' === $entity) {
+            if ('' === $method['entity']) {
                 continue;
             }
 
-            $catalog[$entity] = (string) ($method['logo'] ?? '');
+            $catalog[$method['entity']] = $method['logo'];
         }
 
         return $this->method_catalog_cache = $catalog;
@@ -1514,6 +1505,7 @@ class EntriesPage
      * @param array<string, mixed>|null $base Filter/sort state to build
      *     the URL from instead of $_GET — pass this when called outside a
      *     normal page GET request (e.g. from an AJAX handler).
+     * @param array<string, mixed> $overrides
      */
     private function filtered_url(array $overrides, bool $reset = false, ?array $base = null): string
     {
@@ -1521,25 +1513,12 @@ class EntriesPage
             return add_query_arg(['page' => self::PAGE_SLUG], admin_url('admin.php'));
         }
 
-        if (null !== $base) {
-            $args = ['page' => self::PAGE_SLUG] + $base;
-        } else {
-            $form_id_filter = (int) ($_GET['form_id'] ?? 0);
-            $orderby        = $this->sanitize_orderby($_GET['orderby'] ?? '');
-
-            $args = [
-                'page'      => self::PAGE_SLUG,
-                's'         => sanitize_text_field(wp_unslash($_GET['s'] ?? '')),
-                'status'    => sanitize_text_field(wp_unslash($_GET['status'] ?? '')),
-                'form_id'   => $form_id_filter > 0 ? (string) $form_id_filter : '',
-                'date_from' => $this->sanitize_date($_GET['date_from'] ?? ''),
-                'date_to'   => $this->sanitize_date($_GET['date_to'] ?? ''),
-                'orderby'   => $orderby,
-                'order'     => '' !== $orderby ? $this->sanitize_order($_GET['order'] ?? '') : '',
-                'per_page'  => $this->sanitize_per_page($_GET['per_page'] ?? ''),
-                'paged'     => (int) ($_GET['paged'] ?? 1),
-            ];
+        if (null === $base) {
+            $base            = $this->current_filters();
+            $base['form_id'] = $base['form_id'] > 0 ? (string) $base['form_id'] : '';
         }
+
+        $args = ['page' => self::PAGE_SLUG] + $base;
 
         foreach ($overrides as $key => $value) {
             if (null === $value) {
@@ -1555,7 +1534,7 @@ class EntriesPage
     }
 
     /**
-     * @return array<string, string>
+     * @return array<int, string>
      */
     private function available_forms(): array
     {
@@ -1579,29 +1558,29 @@ class EntriesPage
      */
     private function current_filters(): array
     {
-        $orderby = $this->sanitize_orderby($_GET['orderby'] ?? '');
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended -- Read-only list filters for this screen; nothing is saved.
+        $orderby = $this->sanitize_orderby(sanitize_text_field(wp_unslash($_GET['orderby'] ?? '')));
 
         return [
             's'         => sanitize_text_field(wp_unslash($_GET['s'] ?? '')),
             'status'    => sanitize_text_field(wp_unslash($_GET['status'] ?? '')),
-            'form_id'   => (int) ($_GET['form_id'] ?? 0),
-            'date_from' => $this->sanitize_date($_GET['date_from'] ?? ''),
-            'date_to'   => $this->sanitize_date($_GET['date_to'] ?? ''),
-            'per_page'  => $this->sanitize_per_page($_GET['per_page'] ?? ''),
-            'paged'     => max(1, (int) ($_GET['paged'] ?? 1)),
+            'form_id'   => absint(wp_unslash($_GET['form_id'] ?? 0)),
+            'date_from' => $this->sanitize_date(sanitize_text_field(wp_unslash($_GET['date_from'] ?? ''))),
+            'date_to'   => $this->sanitize_date(sanitize_text_field(wp_unslash($_GET['date_to'] ?? ''))),
+            'per_page'  => $this->sanitize_per_page(sanitize_text_field(wp_unslash($_GET['per_page'] ?? ''))),
+            'paged'     => max(1, absint(wp_unslash($_GET['paged'] ?? 1))),
             'orderby'   => $orderby,
-            'order'     => '' !== $orderby ? $this->sanitize_order($_GET['order'] ?? '') : '',
+            'order'     => '' !== $orderby ? $this->sanitize_order(sanitize_text_field(wp_unslash($_GET['order'] ?? ''))) : '',
         ];
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended
     }
 
     /**
      * Validates a Y-m-d date value, discarding anything malformed instead
      * of passing it through as-is.
      */
-    private function sanitize_date($raw): string
+    private function sanitize_date(string $value): string
     {
-        $value = sanitize_text_field(wp_unslash((string) $raw));
-
         if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
             return '';
         }
@@ -1613,18 +1592,14 @@ class EntriesPage
      * Validates orderby against the sortable columns; anything else falls
      * back to the default reverse-chronological order.
      */
-    private function sanitize_orderby($raw): string
+    private function sanitize_orderby(string $value): string
     {
-        $value = sanitize_text_field(wp_unslash((string) $raw));
-
         return in_array($value, ['id', 'amount', 'status', 'created', 'updated'], true) ? $value : '';
     }
 
-    private function sanitize_order($raw): string
+    private function sanitize_order(string $value): string
     {
-        $value = strtolower(sanitize_text_field(wp_unslash((string) $raw)));
-
-        return 'asc' === $value ? 'asc' : 'desc';
+        return 'asc' === strtolower($value) ? 'asc' : 'desc';
     }
 
     /**
@@ -1632,10 +1607,8 @@ class EntriesPage
      * [1, PER_PAGE_MAX] rather than rejected outright. Only a blank or
      * non-numeric value falls back to the default.
      */
-    private function sanitize_per_page($raw): int
+    private function sanitize_per_page(string $raw): int
     {
-        $raw = sanitize_text_field(wp_unslash((string) $raw));
-
         if ('' === $raw || ! is_numeric($raw)) {
             return self::DEFAULT_PER_PAGE;
         }
@@ -1648,7 +1621,7 @@ class EntriesPage
      * Clicking toggles direction if already sorted by this column,
      * otherwise starts ascending.
      */
-    private function sort_link(string $key, string $label, string $current_orderby, string $current_order): string
+    private function render_sort_link(string $key, string $label, string $current_orderby, string $current_order): void
     {
         $is_sorted  = $key === $current_orderby;
         $next_order = ($is_sorted && 'asc' === $current_order) ? 'desc' : 'asc';
@@ -1659,12 +1632,9 @@ class EntriesPage
             $classes .= ' is-sorted iftp-nf-sortable--' . $current_order;
         }
 
-        return sprintf(
-            '<a class="%1$s" href="%2$s">%3$s <span class="iftp-nf-sort-icon" aria-hidden="true"></span></a>',
-            esc_attr($classes),
-            esc_url($this->filtered_url(['orderby' => $key, 'order' => $next_order, 'paged' => null])),
-            esc_html($label)
-        );
+        echo '<a class="' . esc_attr($classes) . '" href="' . esc_url($this->filtered_url(['orderby' => $key, 'order' => $next_order, 'paged' => null])) . '">'
+            . esc_html($label)
+            . ' <span class="iftp-nf-sort-icon" aria-hidden="true"></span></a>';
     }
 
     /**
